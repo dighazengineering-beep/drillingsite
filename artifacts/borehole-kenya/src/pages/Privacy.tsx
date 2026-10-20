@@ -52,7 +52,7 @@ export default function Privacy() {
 
         <h2 className={h}>Contact us</h2>
         <p className={p}>
-          Dighaz Engineering Limited, Kenya<br />
+          Dighaz Engineering Limited, Rhapta Rd, Westlands, Nairobi, Kenya<br />
           Email: dighazengineering@gmail.com<br />
           Phone: +254 110 699 444 · WhatsApp: +254 719 117 660
         </p>

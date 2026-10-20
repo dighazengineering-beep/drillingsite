@@ -22,7 +22,7 @@ export default function About() {
         <section className="rounded-2xl bg-card/95 p-5 shadow-xl sm:p-7">
           <h1 className="text-2xl font-bold text-foreground"><LiveTitle text="About Us" hi="#0ea5e9" /></h1>
           <p className={body}>
-            Dighaz Engineering Limited is a Kenyan engineering company that helps homes, farms, schools and businesses get reliable water.
+            Dighaz Engineering Limited is a Nairobi-based engineering company that helps homes, farms, schools and businesses get reliable water.
             We do borehole drilling, hydrogeological surveys, test pumping, pump installation, borehole inspection, solar systems and water purification,
             so one team can take you from finding water to having it flow from your tap.
           </p>

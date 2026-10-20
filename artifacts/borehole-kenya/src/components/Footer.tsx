@@ -58,7 +58,7 @@ export default function Footer() {
                   <Mail className="h-3.5 w-3.5 shrink-0" /> Email Us
                 </a>
               </li>
-              <li className="flex items-center gap-1.5"><MapPin className="h-3 w-3 shrink-0" /> Kenya</li>
+              <li className="flex items-center gap-1.5"><MapPin className="h-3 w-3 shrink-0" /> Rhapta Rd, Westlands, Nairobi</li>
               <li className="hidden lg:flex items-center gap-1.5"><Clock className="h-3 w-3 shrink-0" /> Opening hours to be confirmed</li>
             </ul>
           </div>
