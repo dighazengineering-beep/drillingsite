@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VIDEO_CATS, catOf, type VideoCat } from "@/lib/videoCats";
-import { memberToken, memberApi, signOutMember } from "@/lib/member";
+import { memberToken, memberApi, signOutMember, claimAdmin } from "@/lib/member";
 import { Link } from "wouter";
 import { MessageCircle, MapPin, Volume2, VolumeX, X, Droplets, Construction, Sun, Gauge, Search, Compass, FlaskConical, Send, Trash2, ThumbsUp, MoreHorizontal, Reply, Play, Pause, ShieldCheck, LocateFixed, Heart, Share2, Eye, Plus, UploadCloud, ChevronsDown } from "lucide-react";
 import { whatsappLink } from "@/lib/utils";
@@ -95,6 +95,7 @@ export default function Feed() {
   const [adminKey, setAdminKey] = useState(() => store.get("kws_admin"));
   // A signed-in member on the poster list can post (and delete their own) videos, like the admin can
   const [memberTok] = useState(() => memberToken());
+  useEffect(() => { if (!adminKey) claimAdmin().then((k) => { if (k) setAdminKey(k); }); }, []);
   const [canPost, setCanPost] = useState(false);
   const [needsGoogle, setNeedsGoogle] = useState(false);
   useEffect(() => {

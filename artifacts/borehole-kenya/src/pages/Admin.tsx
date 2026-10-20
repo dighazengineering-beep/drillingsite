@@ -5,6 +5,7 @@ import CatalogEditor from "@/components/admin/CatalogEditor";
 import ReferralsAdmin from "@/components/admin/ReferralsAdmin";
 import UploadersAdmin from "@/components/admin/UploadersAdmin";
 import { API, api, store, UploadSheet, type FeedVideo } from "@/pages/Feed";
+import { claimAdmin } from "@/lib/member";
 
 interface UpVideo { id: number; title: string; location?: string; source?: string; url: string; createdAt?: string }
 interface AdminComment { id: number; videoId: string; name: string; body: string; createdAt: string }
@@ -36,6 +37,7 @@ export default function Admin() {
       .catch(() => setComments([]));
   };
 
+  useEffect(() => { if (!key) claimAdmin().then((k) => { if (k) setKey(k); }); }, []);
   useEffect(() => { if (key) load(key); }, [key]);
 
   const login = async (e: React.FormEvent) => {

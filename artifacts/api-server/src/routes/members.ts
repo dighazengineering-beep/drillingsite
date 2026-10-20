@@ -163,6 +163,19 @@ function shapeReferral(r: Row) {
   };
 }
 
+/* ------------------------------------------------------------ company admins */
+// People who are admins just by signing in. Set ADMIN_EMAILS on the server (comma separated) to change the list.
+// The email must be confirmed by Google sign-in, so nobody can become admin by typing someone else's address.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "dighazengineeringltd@gmail.com")
+  .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+router.get("/members/admin-key", async (req: Request, res: Response) => {
+  try {
+    const m = await memberFrom(req);
+    const ok = !!m && !!m.google_id && ADMIN_EMAILS.includes(String(m.email).toLowerCase());
+    res.json({ key: ok ? (process.env.ADMIN_KEY ?? "") : "" });
+  } catch { res.json({ key: "" }); }
+});
+
 /* ------------------------------------------------------------------- public */
 router.get("/members/config", async (_req, res) => {
   try {

@@ -17,7 +17,21 @@ const TOKEN = "kws_member";
 const REF = "kws_ref";
 
 export const memberToken = () => store.get(TOKEN);
-export const setMemberToken = (t: string) => store.set(TOKEN, t);
+export const setMemberToken = (t: string) => { store.set(TOKEN, t); if (t) void claimAdmin(); };
+
+/** A company admin (see ADMIN_EMAILS on the server) who signs in with Google gets the admin tools without typing the password. */
+export async function claimAdmin(): Promise<string> {
+  const have = store.get("kws_admin");
+  if (have) return have;
+  const t = memberToken();
+  if (!t) return "";
+  try {
+    const r = await fetch(`${API}/api/members/admin-key`, { headers: { Authorization: `Bearer ${t}` } });
+    const d = await r.json();
+    if (d?.key) { store.set("kws_admin", d.key); return d.key; }
+  } catch { /* ignore */ }
+  return "";
+}
 export const signOutMember = () => store.set(TOKEN, "");
 
 /** Remember a referral code from a link like /?ref=KWS-AB12C so it can be credited when the visitor sends an enquiry. */
