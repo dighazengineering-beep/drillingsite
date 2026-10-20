@@ -4,7 +4,7 @@ import { whatsappLink } from "@/lib/utils";
 import { LiveTitle } from "@/components/LiveTitle";
 import InstallApp from "@/components/InstallApp";
 
-const services = ["Borehole Drilling", "Hydrogeological Surveys", "Test Pumping", "Pump Installation", "Borehole Inspection", "Water Purification"];
+const services = ["Borehole Drilling", "Hydrogeological Surveys", "Test Pumping", "Pump Installation", "Borehole Inspection", "Water Purification", "Solarisation", "Borehole Rehabilitation", "Fabrication & Construction"];
 
 const link = "hover:text-white transition-colors whitespace-nowrap";
 
@@ -59,7 +59,7 @@ export default function Footer() {
                 </a>
               </li>
               <li className="flex items-center gap-1.5"><MapPin className="h-3 w-3 shrink-0" /> Rhapta Rd, Westlands, Nairobi</li>
-              <li className="hidden lg:flex items-center gap-1.5"><Clock className="h-3 w-3 shrink-0" /> Opening hours to be confirmed</li>
+              <li className="hidden lg:flex items-center gap-1.5"><Clock className="h-3 w-3 shrink-0" /> Mon–Fri 8am–5pm · Sat 9am–1pm</li>
             </ul>
           </div>
         </div>
