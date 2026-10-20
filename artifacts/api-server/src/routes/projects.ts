@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, projectsTable } from "@workspace/db";
-import { eq, ilike, and, SQL } from "drizzle-orm";
+import { eq, ilike, and, desc, SQL } from "drizzle-orm";
 
 const router = Router();
 
@@ -18,8 +18,8 @@ router.get("/projects", async (req, res) => {
   const offset = (pageNum - 1) * limitNum;
 
   const all = conditions.length > 0
-    ? await db.select().from(projectsTable).where(and(...conditions)).orderBy(projectsTable.completionYear)
-    : await db.select().from(projectsTable).orderBy(projectsTable.completionYear);
+    ? await db.select().from(projectsTable).where(and(...conditions)).orderBy(desc(projectsTable.featured), projectsTable.completionYear)
+    : await db.select().from(projectsTable).orderBy(desc(projectsTable.featured), projectsTable.completionYear);
 
   const total = all.length;
   const items = all.slice(offset, offset + limitNum).map(serializeProject);

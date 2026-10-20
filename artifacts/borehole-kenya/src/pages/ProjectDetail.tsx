@@ -86,16 +86,18 @@ export default function ProjectDetail() {
           <div className="flex flex-wrap gap-5 text-sm text-white/70">
             <span className="flex items-center gap-1.5">
               <MapPin className="h-4 w-4 text-white/50" />
-              {project.town}, {project.county} County
+              {project.town}, {project.county}{/^(Kenya|South Sudan)$/.test(project.county) ? "" : " County"}
             </span>
             <span className="flex items-center gap-1.5">
               <Users className="h-4 w-4 text-white/50" />
               {project.region}
             </span>
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-4 w-4 text-white/50" />
-              Completed {project.completionYear}
-            </span>
+            {project.completionYear > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-white/50" />
+                Completed {project.completionYear}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -119,8 +121,8 @@ export default function ProjectDetail() {
             { icon: Layers, label: project.serviceType === "Hydrogeological Survey" ? "Recommended Depth" : "Borehole Depth", value: project.depth ? `${project.depth}m` : "N/A" },
             { icon: Droplets, label: project.serviceType === "Water Purification" ? "Treatment Capacity" : project.serviceType === "Hydrogeological Survey" ? "Expected Yield" : project.serviceType === "Borehole Inspection" ? "Deliverable" : project.serviceType === "Borehole Maintenance" ? "Yield (before → after)" : "Water Yield", value: project.yield ?? "N/A" },
             { icon: Clock, label: "Duration", value: project.duration ?? "N/A" },
-            { icon: Calendar, label: "Year", value: project.completionYear.toString() },
-          ].map((stat) => (
+            { icon: Calendar, label: "Year", value: project.completionYear > 0 ? project.completionYear.toString() : "N/A" },
+          ].filter((stat) => stat.value !== "N/A").map((stat) => (
             <div key={stat.label} className="bg-card/95 border border-border rounded-xl p-4 text-center shadow-sm">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-2">
                 <stat.icon className="h-4 w-4 text-primary" />

@@ -207,7 +207,7 @@ export default function Projects() {
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
                           <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{project.town}, {project.county} County</span>
+                          <span className="truncate">{project.town}, {project.county}{/^(Kenya|South Sudan)$/.test(project.county) ? "" : " County"}</span>
                         </div>
                         <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 flex-1 mb-2">
                           {project.description}
@@ -219,7 +219,7 @@ export default function Projects() {
                           {project.yield && (
                             <span className="flex items-center gap-1"><Droplets className="h-3 w-3" /> {project.yield}</span>
                           )}
-                          <span className="flex items-center gap-1 ml-auto"><Calendar className="h-3 w-3" /> {project.completionYear}</span>
+                          {project.completionYear > 0 && <span className="flex items-center gap-1 ml-auto"><Calendar className="h-3 w-3" /> {project.completionYear}</span>}
                         </div>
                       </div>
                     </CardContent>
