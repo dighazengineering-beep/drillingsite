@@ -54,7 +54,7 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="mailto:dighazengineering@gmail.com" className={`flex items-center gap-1.5 ${link}`}>
+                <a href="mailto:info@dighazengineering.com" className={`flex items-center gap-1.5 ${link}`}>
                   <Mail className="h-3.5 w-3.5 shrink-0" /> Email Us
                 </a>
               </li>

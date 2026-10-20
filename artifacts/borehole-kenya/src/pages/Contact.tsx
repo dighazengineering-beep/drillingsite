@@ -26,6 +26,7 @@ interface ContactForm {
 const contactInfo = [
   { icon: Phone, label: "Phone", value: "+254 110 699 444", href: "tel:+254110699444" },
   { icon: MessageSquare, label: "WhatsApp", value: "+254 719 117 660", href: "https://wa.me/254719117660" },
+  { icon: Mail, label: "Email", value: "info@dighazengineering.com", href: "mailto:info@dighazengineering.com" },
   { icon: Mail, label: "Email", value: "dighazengineering@gmail.com", href: "mailto:dighazengineering@gmail.com" },
   { icon: MapPin, label: "Office", value: "Rhapta Rd, Westlands, Nairobi, Kenya", href: null },
   { icon: Clock, label: "Working Hours", value: "Opening hours to be confirmed", href: null },
