@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "mI-5EMlkUKMMW6nazyjcv"
+uri = "file://artifacts/borehole-kenya/public/images/hero-bg.png"
+type = "image"
+title = "Borehole drilling rig at sunset"
+
+[[generated]]
+id = "QL6CdbFjUmY5tXMtf3ypn"
+uri = "file://artifacts/borehole-kenya/public/images/service-drilling.png"
+type = "image"
+title = "Water flowing from pipe"
+
+[[generated]]
+id = "CHXWFP-Em3uG0iJHelg6t"
+uri = "file://artifacts/borehole-kenya/public/images/service-solar.png"
+type = "image"
+title = "Solar panels and water pump"

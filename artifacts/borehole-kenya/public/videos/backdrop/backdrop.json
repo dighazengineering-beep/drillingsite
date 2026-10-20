@@ -1,0 +1,37 @@
+{
+ "duration": 25.6,
+ "segments": [
+  {
+   "start": 0.0,
+   "title": "Successful Borehole in Kajiado, Isinya"
+  },
+  {
+   "start": 2.8,
+   "title": "Successful Borehole in Makueni, Emali"
+  },
+  {
+   "start": 6.0,
+   "title": "Successful Borehole in Nairobi, Kasarani"
+  },
+  {
+   "start": 9.2,
+   "title": "Successful Borehole in Kitui, Kitui Town"
+  },
+  {
+   "start": 12.4,
+   "title": "Successful Borehole in Kajiado, Namanga"
+  },
+  {
+   "start": 15.6,
+   "title": "Successful Borehole in Kiambu, Ruiru"
+  },
+  {
+   "start": 18.8,
+   "title": "Successful Borehole in Kajiado, Kitengela"
+  },
+  {
+   "start": 22.0,
+   "title": "Successful Borehole in Machakos, Mlolongo"
+  }
+ ]
+}
