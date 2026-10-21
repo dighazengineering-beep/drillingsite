@@ -4,7 +4,7 @@ import { API, kes } from "@/lib/member";
 
 interface Pay {
   id: number; phone: string; name: string; item: string; payType: string; amount: number; agreedTotal: number; paidSoFar: number;
-  method: "mpesa" | "bank"; status: string; receipt: string; bankRef: string; note: string; createdAt: string;
+  method: "mpesa" | "bank"; status: string; receipt: string; bankRef: string; hasImg?: boolean; note: string; createdAt: string;
 }
 const badge: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-800", pending: "bg-amber-100 text-amber-800", failed: "bg-red-100 text-red-700",
@@ -24,6 +24,11 @@ export default function PaymentsAdmin({ adminKey, onBadAdmin }: { adminKey: stri
       .catch(() => setRows((l) => l ?? []));
   useEffect(() => { load(); const t = window.setInterval(load, 15000); return () => window.clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [view, setView] = useState<string | null>(null);
+  const showReceipt = async (id: number) => {
+    const d = await fetch(`${API}/api/payments-admin/${id}/receipt`, { headers: h }).then((r) => r.json()).catch(() => ({}));
+    if (d.img) setView(d.img);
+  };
   const act = async (id: number, action: "confirm" | "reject") => {
     if (action === "reject" && !window.confirm("Reject this payment?")) return;
     await fetch(`${API}/api/payments-admin/${id}/${action}`, { method: "POST", headers: h });
@@ -59,12 +64,14 @@ export default function PaymentsAdmin({ adminKey, onBadAdmin }: { adminKey: stri
               </div>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1">{p.method === "mpesa" ? <Smartphone className="h-3 w-3" /> : <Landmark className="h-3 w-3" />}{p.method === "mpesa" ? "M-Pesa" : "Bank"} {p.receipt || p.bankRef}</span>
+              <span className="flex items-center gap-1">{p.method === "mpesa" ? <Smartphone className="h-3 w-3" /> : <Landmark className="h-3 w-3" />}{p.method === "mpesa" ? "M-Pesa" : "Bank"} {p.receipt || p.bankRef.slice(0, 40)}</span>
               <span>Price {kes(p.agreedTotal)}</span>
               <span>Paid {kes(p.paidSoFar)}</span>
               <span className="font-semibold text-foreground">Balance {kes(Math.max(0, p.agreedTotal - p.paidSoFar))}</span>
-              <span>{new Date(p.createdAt + "Z").toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })}</span>
+              <span>{new Date(p.createdAt).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })}</span>
             </div>
+            {p.method === "bank" && p.bankRef.length > 40 && <p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-muted px-2 py-1 text-[11px] text-foreground/80">{p.bankRef}</p>}
+            {p.hasImg && <button onClick={() => showReceipt(p.id)} className="mt-1 text-[11px] font-bold text-primary underline underline-offset-2">View receipt photo</button>}
             {p.note && <p className="mt-1 text-[11px] text-amber-700">{p.note}</p>}
             {p.method === "bank" && p.status !== "paid" && (
               <div className="mt-2 flex gap-2">
@@ -76,6 +83,11 @@ export default function PaymentsAdmin({ adminKey, onBadAdmin }: { adminKey: stri
           </div>
         ))}
       </div>
+      {view && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/80 p-4" onClick={() => setView(null)}>
+          <img src={view} alt="Receipt" className="max-h-[90dvh] max-w-full rounded-lg" />
+        </div>
+      )}
     </div>
   );
 }

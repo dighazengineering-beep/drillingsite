@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, Smartphone, Landmark, CheckCircle2, Loader2, Wallet, ShieldCheck, Copy, AlertCircle } from "lucide-react";
+import { X, Smartphone, Landmark, CheckCircle2, Loader2, Wallet, ShieldCheck, Copy, AlertCircle, Upload } from "lucide-react";
+import { rememberPhone } from "@/components/NotificationBell";
 import { API, memberApi, memberToken, kes } from "@/lib/member";
 
 type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
 interface Item { name: string; price: number | null }
 interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
-interface Cfg { mpesa: boolean; bank: { bankName: string; accountName: string; accountNumber: string; branch: string } | null }
+interface Cfg { mpesa: boolean; bank: { bankName: string; accountName: string; accountNumber: string } | null }
 
 const DEPOSIT_PCT = 70; // share of the agreed price taken as the deposit (the client can change the amount)
 const inp = "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25";
@@ -31,6 +32,7 @@ export default function PayDialog() {
   const [phone, setPhone] = useState("");
   const [method, setMethod] = useState<"mpesa" | "bank">("mpesa");
   const [bankRef, setBankRef] = useState("");
+  const [img, setImg] = useState("");
   const [cfg, setCfg] = useState<Cfg>({ mpesa: true, bank: null });
   const [bal, setBal] = useState<Bal | null>(null);
   const [busy, setBusy] = useState(false);
@@ -107,7 +109,7 @@ export default function PayDialog() {
   const A = money(amount);
   const done = bal?.found && bal.balance <= 0 && bal.paid > 0 && T <= bal.paid;
 
-  const reset = () => { window.clearInterval(poll.current); setPhase("form"); setErr(""); setBankRef(""); setReceipt(""); setBusy(false); };
+  const reset = () => { window.clearInterval(poll.current); setPhase("form"); setErr(""); setBankRef(""); setImg(""); setReceipt(""); setBusy(false); };
   const close = (v: boolean) => { setOpen(v); if (!v) reset(); };
 
   const submit = async () => {
@@ -118,13 +120,14 @@ export default function PayDialog() {
     if (A > T) return setErr("The amount cannot be more than the agreed price.");
     if (name.trim().length < 2) return setErr("Enter your name.");
     if (!phoneOk) return setErr("Enter your phone number.");
-    if (method === "bank" && bankRef.trim().length < 3) return setErr("Enter the transaction code from your bank.");
+    if (method === "bank" && bankRef.trim().length < 3 && !img) return setErr("Upload your payment receipt, or paste the bank message.");
     setBusy(true);
-    const body = { name, phone, kind, item, payType, amount: A, agreedTotal: T, bankRef };
+    const body = { name, phone, kind, item, payType, amount: A, agreedTotal: T, bankRef, receiptImg: img || undefined };
     try {
       const r = await fetch(`${API}/api/payments/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong.");
+      rememberPhone(phone); window.dispatchEvent(new Event("dighaz:phone"));
       if (method === "bank") { setPhase("bank"); setBusy(false); return; }
       setPhase("wait");
       let tries = 0;
@@ -139,6 +142,22 @@ export default function PayDialog() {
       }, 3000);
     } catch (e) { setErr((e as Error).message); }
     setBusy(false);
+  };
+
+  const pickFile = (f?: File) => {
+    if (!f) return;
+    if (!f.type.startsWith("image/")) { setErr("Please choose a photo or screenshot of the receipt."); return; }
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1100 / Math.max(im.width, im.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext("2d")!.drawImage(im, 0, 0, c.width, c.height);
+      setImg(c.toDataURL("image/jpeg", 0.72)); setErr("");
+      URL.revokeObjectURL(im.src);
+    };
+    im.onerror = () => setErr("Could not read that image.");
+    im.src = URL.createObjectURL(f);
   };
 
   const copy = (t: string) => { navigator.clipboard?.writeText(t).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
@@ -228,13 +247,21 @@ export default function PayDialog() {
 
                 {method === "bank" && cfg.bank && (
                   <div className="space-y-2 rounded-xl border border-border bg-background p-3 text-xs">
-                    {([["Bank", cfg.bank.bankName], ["Account name", cfg.bank.accountName], ["Account number", cfg.bank.accountNumber], ["Branch", cfg.bank.branch]] as const).filter(([, v]) => v).map(([k, v]) => (
+                    {([["Bank", cfg.bank.bankName], ["Account name", cfg.bank.accountName], ["Account number", cfg.bank.accountNumber]] as const).filter(([, v]) => v).map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between gap-2"><span className="text-muted-foreground">{k}</span><span className="font-semibold text-foreground">{v}</span></div>
                     ))}
                     <button type="button" onClick={() => copy(cfg.bank!.accountNumber)} className="flex items-center gap-1 text-[11px] font-semibold text-primary"><Copy className="h-3 w-3" /> {copied ? "Copied" : "Copy account number"}</button>
                     <div>
-                      <label className={lab}>Bank transaction code</label>
-                      <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} placeholder="After paying, enter the code" className={inp} />
+                      <label className={lab}>Payment receipt</label>
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 py-2.5 text-xs font-semibold text-primary">
+                        <Upload className="h-4 w-4" /> {img ? "Receipt added. Tap to change" : "Upload receipt photo or screenshot"}
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => pickFile(e.target.files?.[0])} data-testid="pay-receipt" />
+                      </label>
+                      {img && <img src={img} alt="Receipt" className="mt-2 max-h-28 rounded-lg border border-border object-contain" />}
+                    </div>
+                    <div>
+                      <label className={lab}>Or paste the bank message</label>
+                      <textarea value={bankRef} onChange={(e) => setBankRef(e.target.value)} rows={2} placeholder="Transaction code or the confirmation message" className={inp} />
                     </div>
                   </div>
                 )}

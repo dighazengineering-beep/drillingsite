@@ -44,8 +44,6 @@ services:
         sync: false
       - key: BANK_ACCOUNT_NUMBER
         sync: false
-      - key: BANK_BRANCH
-        sync: false
       # Signs member log-ins. Render makes a random value for you.
       - key: MEMBER_SECRET
         generateValue: true

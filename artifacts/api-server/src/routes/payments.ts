@@ -31,6 +31,16 @@ function ensureTables() {
         note TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_img TEXT;
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        phone TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        link TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS notifications_phone_idx ON notifications (phone, id DESC);
       CREATE INDEX IF NOT EXISTS payments_job_idx ON payments (phone, item);
       CREATE INDEX IF NOT EXISTS payments_checkout_idx ON payments (checkout_id);`,
     )
@@ -83,10 +93,30 @@ async function jobBalance(phone: string, item: string) {
   return { found: true, agreedTotal, paid, pending, balance: Math.max(0, agreedTotal - paid) };
 }
 
+const kes = (n: number) => `KSh ${Math.round(n).toLocaleString("en-KE")}`;
+async function notify(phone: string, title: string, body: string, link = "") {
+  await pool.query("INSERT INTO notifications (phone,title,body,link) VALUES ($1,$2,$3,$4)", [phone, title, body, link]).catch(() => {});
+}
+/** Tell the client a payment was received and what is left on the job. */
+async function notifyPaid(id: number) {
+  const r = await pool.query("SELECT phone, item, amount FROM payments WHERE id=$1", [id]);
+  if (!r.rows[0]) return;
+  const { phone, item, amount } = r.rows[0];
+  const b = await jobBalance(phone, item);
+  await notify(
+    phone,
+    b.balance > 0 ? "Payment received" : "Payment complete",
+    b.balance > 0
+      ? `We received ${kes(Number(amount))} for ${item}. Balance remaining: ${kes(b.balance)}.`
+      : `We received ${kes(Number(amount))} for ${item}. It is fully paid. Thank you for choosing Dighaz Engineering.`,
+    "/feed",
+  );
+}
+
 /* ------------------------------------------------------------- public */
 router.get("/payments/config", (_req, res) => {
   const bank = process.env.BANK_ACCOUNT_NUMBER
-    ? { bankName: process.env.BANK_NAME ?? "", accountName: process.env.BANK_ACCOUNT_NAME ?? "", accountNumber: process.env.BANK_ACCOUNT_NUMBER, branch: process.env.BANK_BRANCH ?? "" }
+    ? { bankName: process.env.BANK_NAME ?? "", accountName: process.env.BANK_ACCOUNT_NAME ?? "", accountNumber: process.env.BANK_ACCOUNT_NUMBER }
     : null;
   res.json({ mpesa: mpesaReady(), bank });
 });
@@ -99,6 +129,16 @@ router.get("/payments/balance", async (req, res) => {
     if (!phone || !item) { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); return; }
     res.json(await jobBalance(phone, item));
   } catch { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); }
+});
+
+router.get("/payments/notifications", async (req, res) => {
+  try {
+    await ensureTables();
+    const phone = normPhone(req.query.phone);
+    if (!phone) { res.json([]); return; }
+    const r = await pool.query('SELECT id, title, body, link, created_at AS "createdAt" FROM notifications WHERE phone=$1 ORDER BY id DESC LIMIT 20', [phone]);
+    res.json(r.rows);
+  } catch { res.json([]); }
 });
 
 router.get("/payments/:id/status", async (req, res) => {
@@ -189,6 +229,8 @@ router.post("/payments/mpesa/callback/:secret", async (req: Request, res: Respon
          WHERE checkout_id=$1 AND status='pending'`,
         [cb.CheckoutRequestID, receipt, Number.isFinite(paidAmt) ? paidAmt : -1],
       );
+      const pid = await pool.query("SELECT id FROM payments WHERE checkout_id=$1 AND status='paid'", [cb.CheckoutRequestID]);
+      if (pid.rows[0]) await notifyPaid(pid.rows[0].id);
     } else {
       const cancelled = Number(cb.ResultCode) === 1032;
       await pool.query("UPDATE payments SET status=$2, note=$3 WHERE checkout_id=$1 AND status='pending'", [
@@ -204,12 +246,14 @@ router.post("/payments/bank", async (req: Request, res: Response) => {
     await ensureTables();
     const p = parseBody(req.body ?? {});
     if (typeof p === "string") { res.status(400).json({ error: p }); return; }
-    const bankRef = str(req.body?.bankRef, 80);
-    if (bankRef.length < 3) { res.status(400).json({ error: "Enter the transaction code or reference from your bank." }); return; }
+    const bankRef = str(req.body?.bankRef, 600);
+    const img = typeof req.body?.receiptImg === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(req.body.receiptImg) && req.body.receiptImg.length < 1_000_000 ? req.body.receiptImg : null;
+    if (bankRef.length < 3 && !img) { res.status(400).json({ error: "Upload your payment receipt, or paste the bank message." }); return; }
     const ins = await pool.query(
-      `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status,bank_ref) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'bank','pending',$9) RETURNING id`,
-      [p.phone, p.name, p.email, p.kind, p.item, p.payType, p.amount, p.agreedTotal, bankRef],
+      `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status,bank_ref,receipt_img) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'bank','pending',$9,$10) RETURNING id`,
+      [p.phone, p.name, p.email, p.kind, p.item, p.payType, p.amount, p.agreedTotal, bankRef, img],
     );
+    await notify(p.phone, "Receipt received", `We received your ${kes(p.amount)} bank payment proof for ${p.item}. We are confirming it now.`);
     res.json({ id: ins.rows[0].id, status: "pending" });
   } catch { res.status(500).json({ error: "Something went wrong. Please try again." }); }
 });
@@ -220,7 +264,7 @@ router.get("/payments-admin/list", async (req, res) => {
   try {
     await ensureTables();
     const r = await pool.query(
-      `SELECT id, phone, name, email, kind, item, pay_type AS "payType", amount, agreed_total AS "agreedTotal", method, status, receipt, bank_ref AS "bankRef", note, created_at AS "createdAt" FROM payments ORDER BY created_at DESC LIMIT 300`,
+      `SELECT id, phone, name, email, kind, item, pay_type AS "payType", amount, agreed_total AS "agreedTotal", method, status, receipt, bank_ref AS "bankRef", (receipt_img IS NOT NULL) AS "hasImg", note, created_at AS "createdAt" FROM payments ORDER BY created_at DESC LIMIT 300`,
     );
     const rows = r.rows.map((x) => ({ ...x, amount: Number(x.amount), agreedTotal: Number(x.agreedTotal) }));
     // running balance per job (phone + item)
@@ -228,6 +272,15 @@ router.get("/payments-admin/list", async (req, res) => {
     for (const x of rows) if (x.status === "paid") paid.set(`${x.phone}|${x.item}`, (paid.get(`${x.phone}|${x.item}`) ?? 0) + x.amount);
     res.json(rows.map((x) => ({ ...x, paidSoFar: paid.get(`${x.phone}|${x.item}`) ?? 0 })));
   } catch { res.status(500).json({ error: "Could not load payments." }); }
+});
+
+router.get("/payments-admin/:id/receipt", async (req, res) => {
+  if (!isAdmin(req)) { res.status(403).json({ error: "Admin only" }); return; }
+  try {
+    await ensureTables();
+    const r = await pool.query("SELECT receipt_img FROM payments WHERE id=$1", [Number(req.params.id) || 0]);
+    res.json({ img: r.rows[0]?.receipt_img ?? null });
+  } catch { res.status(500).json({ error: "Could not load." }); }
 });
 
 router.post("/payments-admin/:id/:action", async (req, res) => {
@@ -241,6 +294,11 @@ router.post("/payments-admin/:id/:action", async (req, res) => {
       [Number(req.params.id) || 0, action === "confirm" ? "paid" : "rejected"],
     );
     if (!r.rows[0]) { res.status(404).json({ error: "Only bank payments can be confirmed here." }); return; }
+    if (action === "confirm") await notifyPaid(r.rows[0].id);
+    else {
+      const q = await pool.query("SELECT phone, item FROM payments WHERE id=$1", [r.rows[0].id]);
+      await notify(q.rows[0].phone, "Bank payment not confirmed", `We could not confirm your bank payment for ${q.rows[0].item}. Please call us on +254 110 699 444.`);
+    }
     res.json({ ok: true });
   } catch { res.status(500).json({ error: "Could not update." }); }
 });
