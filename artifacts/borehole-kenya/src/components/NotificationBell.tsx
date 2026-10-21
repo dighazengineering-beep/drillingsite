@@ -61,7 +61,7 @@ export default function NotificationBell() {
 
   return (
     <div className="relative">
-      <button type="button" onClick={toggle} aria-label="Notifications" data-testid="button-bell" className="relative rounded-md p-2 transition-colors hover:bg-muted">
+      <button type="button" onClick={toggle} aria-label="Notifications" data-testid="button-bell" className="relative rounded-md p-1.5 transition-colors hover:bg-muted sm:p-2">
         <Bell className="h-5 w-5 text-foreground/70" />
         {unread > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
       </button>

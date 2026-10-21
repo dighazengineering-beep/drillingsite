@@ -55,11 +55,11 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex shrink-0 items-center gap-2.5 group">
-            <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-10 w-auto shrink-0 object-contain" />
+          <Link href="/" className="flex min-w-0 items-center gap-2 group sm:gap-2.5">
+            <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-9 w-auto shrink-0 object-contain sm:h-10" />
             <div className="leading-tight">
-              <div className="text-sm font-bold text-foreground"><span className="text-primary">Dighaz</span> Engineering</div>
-              <div className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase">Limited</div>
+              <div className="whitespace-nowrap text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span><span className="max-[374px]:hidden"> Engineering</span></div>
+              <div className="text-[9px] font-medium uppercase tracking-[.14em] text-muted-foreground sm:text-[10px] sm:tracking-wide">Limited</div>
             </div>
           </Link>
 
@@ -81,10 +81,10 @@ export default function Navbar() {
           </nav>
 
           {/* Right actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="hidden min-[420px]:block"><WhatsAppButton /></div>
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
+            <div className="hidden sm:block"><WhatsAppButton /></div>
             <NotificationBell />
-            <Link href="/cart" className="relative p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
+            <Link href="/cart" className="relative p-1.5 sm:p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
               <ShoppingCart className="h-5 w-5 text-foreground/70" />
               {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 text-[10px] font-bold bg-primary text-white rounded-full flex items-center justify-center">
@@ -97,7 +97,7 @@ export default function Navbar() {
               type="button"
               onClick={() => openPay()}
               data-testid="button-pay"
-              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-extrabold text-white shadow-md ring-1 ring-white/30 transition hover:shadow-lg active:scale-95 sm:px-4 sm:text-sm"
+              className="mx-1 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-extrabold text-white shadow-md ring-1 ring-white/30 transition hover:shadow-lg active:scale-95 sm:mx-0 sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm"
               style={{ background: "linear-gradient(135deg, hsl(155 56% 24%), hsl(160 60% 30%) 55%, hsl(199 80% 42%))" }}
             >
               <Wallet className="h-4 w-4" /> Pay
@@ -109,7 +109,7 @@ export default function Navbar() {
 
             {/* Mobile menu toggle */}
             <button
-              className="lg:hidden p-2 rounded-md hover:bg-muted transition-colors"
+              className="lg:hidden p-1.5 sm:p-2 rounded-md hover:bg-muted transition-colors"
               onClick={() => setOpen(!open)}
               data-testid="button-menu-toggle"
               aria-label="Toggle menu"
