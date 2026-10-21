@@ -331,10 +331,12 @@
   .live-ch {
     background: none;
     -webkit-text-fill-color: currentColor;
-    animation:
-      var(--in, fx-fade) 4.2s cubic-bezier(.2, .7, .2, 1) calc(var(--c, 0) * var(--st)) infinite both paused,
-      var(--idle, fx-float) var(--iddur, 2.4s) ease-in-out calc(1.4s + var(--c, 0) * 90ms) infinite alternate paused;
+    animation: var(--in, fx-fade) 4.2s cubic-bezier(.2, .7, .2, 1) calc(var(--c, 0) * var(--st)) infinite both paused;
   }
+  /* small titles (menu links, card titles) stay perfectly still on phones: dozens of moving letters is what makes a phone stutter */
+  .live-sub .live-ch { animation: none !important; }
+  /* blurred glass panels over a playing video are very costly on phones, so they become solid-looking panels */
+  [class*="backdrop-blur"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }
 .live-ch[data-s] > .r { visibility: hidden; }
 .live-ch[data-s]::before { content: attr(data-s); position: absolute; inset: 0; text-align: center; white-space: pre; }

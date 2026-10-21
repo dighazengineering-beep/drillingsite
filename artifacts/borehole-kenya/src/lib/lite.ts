@@ -8,8 +8,6 @@ export function isLite(): boolean {
     const q = new URLSearchParams(window.location.search).get("lite");
     if (q === "1") return true;
     if (q === "0") return false;
-    // Phones always get the calm version (still pictures, plain headings): the moving video and letter effects make phones lag.
-    if (window.matchMedia?.("(max-width: 639px)").matches) return true;
     const n = navigator as unknown as {
       deviceMemory?: number;
       hardwareConcurrency?: number;

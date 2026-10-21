@@ -13,9 +13,12 @@ const EFFECTS = [
 export type Effect = (typeof EFFECTS)[number];
 
 const forced = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("fx") : null;
+// On phones the effects that need blur filters or constant redrawing are left out, the rest keep the headings alive
+const PHONE = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
+const POOL: readonly Effect[] = PHONE ? EFFECTS.filter((e) => e !== "scramble" && e !== "blur" && e !== "neon") : EFFECTS;
 export const FX: Effect = (EFFECTS as readonly string[]).includes(forced ?? "")
   ? (forced as Effect)
-  : EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
+  : POOL[Math.floor(Math.random() * POOL.length)];
 const CYCLE_MS = 4200;
 let epoch = 0; // when the current landing started
 
@@ -28,7 +31,7 @@ if (typeof document !== "undefined") {
   epoch = performance.now();
   const noMotion = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (!forced && !noMotion && !isLite()) {
-    const order = [FX, ...EFFECTS.filter((e) => e !== FX).sort(() => Math.random() - 0.5)];
+    const order = [FX, ...POOL.filter((e) => e !== FX).sort(() => Math.random() - 0.5)];
     let n = 0;
     setInterval(() => {
       if (document.hidden) return;

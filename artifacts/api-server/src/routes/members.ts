@@ -166,7 +166,7 @@ function shapeReferral(r: Row) {
 /* ------------------------------------------------------------ company admins */
 // People who are admins just by signing in. Set ADMIN_EMAILS on the server (comma separated) to change the list.
 // The email must be confirmed by Google sign-in, so nobody can become admin by typing someone else's address.
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "dighazengineeringltd@gmail.com")
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "dighazengineeringltd@gmail.com,190lisam@gmail.com")
   .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
 router.get("/members/admin-key", async (req: Request, res: Response) => {
   try {
