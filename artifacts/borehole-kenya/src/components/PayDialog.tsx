@@ -6,7 +6,7 @@ import { API, memberApi, memberToken, kes } from "@/lib/member";
 
 type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
-interface Item { name: string; price: number | null }
+interface Item { name: string; price: number | null; unit?: string }
 interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
 interface Bank { bankName: string; accountName: string; accountNumber: string }
 interface Cfg { mpesa: boolean; banks: Bank[] }
@@ -27,6 +27,8 @@ export default function PayDialog() {
   const [item, setItem] = useState("");
   const [payType, setPayType] = useState<PayType>("deposit");
   const [total, setTotal] = useState("");
+  const [rate, setRate] = useState("");
+  const [depth, setDepth] = useState("");
   const [amount, setAmount] = useState("");
   const [amountTouched, setAmountTouched] = useState(false);
   const [name, setName] = useState("");
@@ -63,7 +65,7 @@ export default function PayDialog() {
     const get = (p: string) => fetch(`${API}/api/${p}`).then((r) => r.json()).catch(() => []);
     Promise.all([get("services"), get("products?limit=100")]).then(([s, p]) => {
       setItems({
-        service: (Array.isArray(s) ? s : []).map((x: any) => ({ name: x.name, price: x.priceFrom ?? null })),
+        service: (Array.isArray(s) ? s : []).map((x: any) => ({ name: x.name, price: x.priceFrom ?? null, unit: x.priceUnit ?? "" })),
         product: (Array.isArray(p) ? p : (p?.items ?? [])).map((x: any) => ({ name: x.name, price: x.price != null ? Number(x.price) : null })),
       });
     });
@@ -77,7 +79,14 @@ export default function PayDialog() {
   const chosen = list.find((i) => i.name === item);
 
   // choosing an item fills the catalogue price (the client may overwrite it with the agreed price)
-  useEffect(() => { if (chosen?.price) setTotal(String(Math.round(chosen.price))); else if (item) setTotal(""); }, [item, kind, chosen?.price]);
+  const perMetre = kind === "service" && /metre|meter/i.test(chosen?.unit ?? "");
+  useEffect(() => {
+    if (perMetre) { setRate(chosen?.price ? String(Math.round(chosen.price)) : ""); setDepth(""); setTotal(""); }
+    else if (chosen?.price) setTotal(String(Math.round(chosen.price)));
+    else if (item) setTotal("");
+  }, [item, kind, chosen?.price, perMetre]);
+  const existing = !!(bal?.found && bal.paid > 0); // a job already being paid keeps its agreed price
+  useEffect(() => { if (perMetre && !existing) setTotal(money(rate) && money(depth) ? String(money(rate) * money(depth)) : ""); }, [rate, depth, perMetre, existing]);
   useEffect(() => { setItem((v) => (items[kind].some((i) => i.name === v) ? v : "")); }, [kind, items]);
 
   // look up what this phone has already paid for this item
@@ -116,6 +125,7 @@ export default function PayDialog() {
   const submit = async () => {
     setErr("");
     if (!item) return setErr("Choose what you are paying for.");
+    if (perMetre && !existing && !money(depth)) return setErr("Enter the agreed depth in metres.");
     if (!T) return setErr("Enter the agreed price.");
     if (!A) return setErr("Enter the amount to pay.");
     if (A > T) return setErr("The amount cannot be more than the agreed price.");
@@ -207,10 +217,23 @@ export default function PayDialog() {
                   ))}
                 </div>
 
+                {perMetre && !existing && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={lab}>Price per metre (KSh)</label>
+                      <input inputMode="numeric" value={fmt(money(rate))} onChange={(e) => setRate(digits(e.target.value))} placeholder="0" className={inp} data-testid="pay-rate" />
+                    </div>
+                    <div>
+                      <label className={lab}>Agreed depth (metres)</label>
+                      <input inputMode="numeric" value={depth} onChange={(e) => setDepth(digits(e.target.value))} placeholder="e.g. 150" className={inp} data-testid="pay-depth" />
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={lab}>Agreed price (KSh)</label>
-                    <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => setTotal(digits(e.target.value))} placeholder="0" className={inp} data-testid="pay-total" />
+                    <label className={lab}>{perMetre && !existing ? "Total price (KSh)" : "Agreed price (KSh)"}</label>
+                    <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => setTotal(digits(e.target.value))} readOnly={perMetre && !existing} placeholder="0" className={`${inp} ${perMetre && !existing ? "bg-muted/60" : ""}`} data-testid="pay-total" />
                   </div>
                   <div>
                     <label className={lab}>Pay now (KSh)</label>
