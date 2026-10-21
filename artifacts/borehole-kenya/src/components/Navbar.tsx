@@ -58,7 +58,7 @@ export default function Navbar() {
           <Link href="/" className="flex min-w-0 items-center gap-2 group sm:gap-2.5">
             <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-9 w-auto shrink-0 object-contain sm:h-10" />
             <div className="leading-tight">
-              <div className="whitespace-nowrap text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span><span className="max-[374px]:hidden"> Engineering</span></div>
+              <div className="whitespace-nowrap text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span><span className="max-[339px]:hidden"> Engineering</span></div>
               <div className="text-[9px] font-medium uppercase tracking-[.14em] text-muted-foreground sm:text-[10px] sm:tracking-wide">Limited</div>
             </div>
           </Link>
@@ -84,7 +84,7 @@ export default function Navbar() {
           <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
             <div className="hidden sm:block"><WhatsAppButton /></div>
             <NotificationBell />
-            <Link href="/cart" className="relative p-1.5 sm:p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
+            <Link href="/cart" className="relative hidden p-1.5 sm:block sm:p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
               <ShoppingCart className="h-5 w-5 text-foreground/70" />
               {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 text-[10px] font-bold bg-primary text-white rounded-full flex items-center justify-center">
@@ -147,6 +147,15 @@ export default function Navbar() {
             </nav>
 
             <div className="mt-3 space-y-2">
+              <Link
+                href="/cart"
+                onClick={() => setOpen(false)}
+                data-testid="link-cart-mobile"
+                className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 shadow-sm transition active:scale-[.98]"
+              >
+                <span className="flex items-center gap-2.5 text-sm font-bold text-foreground"><ShoppingCart className="h-[18px] w-[18px] text-primary" /> My cart</span>
+                <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground">{cartCount}</span>
+              </Link>
               <Link
                 href="/contact"
                 onClick={() => setOpen(false)}
