@@ -72,10 +72,12 @@ const lng = (v: unknown) => numIn(v, 33.5, 42);
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max) || null;
 const COLS = `id, url, poster, title, location, village, lat, lng, source, category, created_at AS "createdAt"`;
 
+// Pasted settings often carry a stray space, new line or quote marks, which makes Cloudinary reject the upload signature. Clean them.
+const envClean = (v: string | undefined) => v?.trim().replace(/^["'`]+|["'`]+$/g, "").trim();
 const cloud = () => ({
-  name: process.env.CLOUDINARY_CLOUD_NAME,
-  key: process.env.CLOUDINARY_API_KEY,
-  secret: process.env.CLOUDINARY_API_SECRET,
+  name: envClean(process.env.CLOUDINARY_CLOUD_NAME),
+  key: envClean(process.env.CLOUDINARY_API_KEY),
+  secret: envClean(process.env.CLOUDINARY_API_SECRET),
 });
 const gh = {
   get token() { return process.env.GITHUB_TOKEN; },
