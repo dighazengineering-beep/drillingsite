@@ -8,7 +8,7 @@ type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
 interface Item { name: string; price: number | null; unit?: string }
 interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
-interface Bank { bankName: string; accountName: string; accountNumber: string }
+interface Bank { bankName: string; accountName: string; accountNumber: string; paybill?: string }
 interface Cfg { mpesa: boolean; banks: Bank[] }
 
 const DEPOSIT_PCT = 70; // share of the agreed price taken as the deposit (the client can change the amount)
@@ -59,8 +59,8 @@ export default function PayDialog() {
   }, []);
 
   // first open: load the catalogue, payment options and the signed-in client's details
-  useEffect(() => {
-    if (!open || loaded.current) return;
+  const preload = () => {
+    if (loaded.current) return;
     loaded.current = true;
     const get = (p: string) => fetch(`${API}/api/${p}`).then((r) => r.json()).catch(() => []);
     Promise.all([get("services"), get("products?limit=100")]).then(([s, p]) => {
@@ -71,7 +71,10 @@ export default function PayDialog() {
     });
     fetch(`${API}/api/payments/config`).then((r) => r.json()).then((c: Cfg) => { setCfg(c); if (!c.mpesa && c.banks?.length) setMethod("bank"); }).catch(() => {});
     if (memberToken()) memberApi<{ member: { name: string; phone: string } }>("/me").then((d) => { setName((v) => v || d.member.name || ""); setPhone((v) => v || d.member.phone || ""); }).catch(() => {});
-  }, [open]);
+  };
+  // load the lists in the background right after the page opens, so the card appears ready (and wakes the server early)
+  useEffect(() => { const t = window.setTimeout(preload, 1200); return () => window.clearTimeout(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) preload(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => window.clearInterval(poll.current), []);
 
@@ -149,8 +152,8 @@ export default function PayDialog() {
           if (s.status === "paid") { window.clearInterval(poll.current); setReceipt(s.receipt || ""); setPhase("paid"); }
           else if (s.status === "failed" || s.status === "cancelled") { window.clearInterval(poll.current); setErr(s.status === "cancelled" ? "The payment was cancelled on your phone." : `The payment did not go through.${s.note ? ` (${s.note})` : ""}`); setPhase("failed"); }
         } catch { /* keep trying */ }
-        if (tries > 40) { window.clearInterval(poll.current); setErr("We did not get a reply from M-Pesa. If money was taken, call us and we will confirm it."); setPhase("failed"); }
-      }, 3000);
+        if (tries > 80) { window.clearInterval(poll.current); setErr("We did not get a reply from M-Pesa. If money was taken, call us and we will confirm it."); setPhase("failed"); }
+      }, 1500);
     } catch (e) { setErr((e as Error).message); }
     setBusy(false);
   };
@@ -277,6 +280,7 @@ export default function PayDialog() {
                           <button type="button" onClick={() => copy(bk.accountNumber)} className="flex items-center gap-1 text-[11px] font-semibold text-primary"><Copy className="h-3 w-3" /> Copy</button></div>
                         <div className="mt-1 text-muted-foreground">{bk.accountName}</div>
                         <div className="text-sm font-extrabold tracking-wide text-foreground">{bk.accountNumber}</div>
+                        {bk.paybill && <div className="mt-1 text-[11px] text-muted-foreground">Or M-Pesa Paybill <b className="text-foreground">{bk.paybill}</b>, account <b className="text-foreground">{bk.accountNumber}</b></div>}
                       </div>
                     ))}
                     {copied && <p className="text-[11px] font-semibold text-primary">Account number copied</p>}

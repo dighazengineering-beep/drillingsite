@@ -115,13 +115,14 @@ async function notifyPaid(id: number) {
 
 /* ------------------------------------------------------------- public */
 /** Bank accounts to show. BANK_ACCOUNTS = "Bank|Account name|Account number;Bank|Account name|Account number" (or the single BANK_* variables). */
+const DEFAULT_BANKS = [
+  { bankName: "KCB Bank", accountName: "Dighaz Engineering Limited", accountNumber: "1315850613", paybill: "522522" },
+  { bankName: "Absa Bank", accountName: "Dighaz Engineering Limited", accountNumber: "2057613672", paybill: "303030" },
+];
 function bankAccounts() {
   const multi = (process.env.BANK_ACCOUNTS ?? "").split(";").map((x) => x.split("|").map((y) => y.trim())).filter((x) => x.length >= 3 && x[2])
-    .map(([bankName, accountName, accountNumber]) => ({ bankName, accountName, accountNumber }));
-  if (multi.length) return multi;
-  return process.env.BANK_ACCOUNT_NUMBER
-    ? [{ bankName: process.env.BANK_NAME ?? "", accountName: process.env.BANK_ACCOUNT_NAME ?? "", accountNumber: process.env.BANK_ACCOUNT_NUMBER }]
-    : [];
+    .map(([bankName, accountName, accountNumber, paybill]) => ({ bankName, accountName, accountNumber, paybill: paybill ?? "" }));
+  return multi.length ? multi : DEFAULT_BANKS;
 }
 router.get("/payments/config", (_req, res) => {
   res.json({ mpesa: mpesaReady(), banks: bankAccounts() });
@@ -161,11 +162,14 @@ const mpesaReady = () => !!(process.env.MPESA_CONSUMER_KEY && process.env.MPESA_
 const mpesaBase = () => process.env.MPESA_BASE_URL || (process.env.MPESA_ENV === "live" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke");
 const callbackSecret = () => crypto.createHmac("sha256", process.env.MEMBER_SECRET ?? "dev").update("mpesa-callback").digest("hex").slice(0, 24);
 
+let tokenCache: { t: string; exp: number } | null = null;
 async function mpesaToken(): Promise<string> {
+  if (tokenCache && tokenCache.exp > Date.now()) return tokenCache.t;
   const basic = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString("base64");
   const r = await fetch(`${mpesaBase()}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${basic}` } });
   const d: any = await r.json().catch(() => ({}));
   if (!d.access_token) throw new Error("M-Pesa sign-in failed");
+  tokenCache = { t: d.access_token, exp: Date.now() + 50 * 60_000 };
   return d.access_token;
 }
 const stamp = () => new Date(Date.now() + 3 * 3600_000).toISOString().replace(/\D/g, "").slice(0, 14);
@@ -176,6 +180,7 @@ router.post("/payments/mpesa", async (req: Request, res: Response) => {
     if (!mpesaReady()) { res.status(503).json({ error: "M-Pesa is not switched on yet. Please use bank transfer or call us." }); return; }
     const p = parseBody(req.body ?? {});
     if (typeof p === "string") { res.status(400).json({ error: p }); return; }
+    const tokenP = mpesaToken().catch((e) => e as Error);
     const ins = await pool.query(
       `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mpesa','pending') RETURNING id`,
       [p.phone, p.name, p.email, p.kind, p.item, p.payType, p.amount, p.agreedTotal],
@@ -186,7 +191,8 @@ router.post("/payments/mpesa", async (req: Request, res: Response) => {
     const till = process.env.MPESA_TYPE === "till";
     const base = (process.env.PUBLIC_API_URL ?? process.env.RENDER_EXTERNAL_URL ?? "").replace(/\/$/, "");
     try {
-      const token = await mpesaToken();
+      const token = await tokenP;
+      if (typeof token !== "string") throw token;
       const r = await fetch(`${mpesaBase()}/mpesa/stkpush/v1/processrequest`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
