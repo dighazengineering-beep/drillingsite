@@ -38,6 +38,8 @@ services:
         sync: false
       - key: MPESA_TYPE
         sync: false
+      - key: MPESA_TILL
+        sync: false
       - key: BANK_NAME
         sync: false
       - key: BANK_ACCOUNT_NAME
