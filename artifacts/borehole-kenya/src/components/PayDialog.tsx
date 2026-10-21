@@ -147,7 +147,7 @@ export default function PayDialog() {
         try {
           const s = await fetch(`${API}/api/payments/${d.id}/status`).then((x) => x.json());
           if (s.status === "paid") { window.clearInterval(poll.current); setReceipt(s.receipt || ""); setPhase("paid"); }
-          else if (s.status === "failed" || s.status === "cancelled") { window.clearInterval(poll.current); setErr(s.status === "cancelled" ? "The payment was cancelled on your phone." : "The payment did not go through."); setPhase("failed"); }
+          else if (s.status === "failed" || s.status === "cancelled") { window.clearInterval(poll.current); setErr(s.status === "cancelled" ? "The payment was cancelled on your phone." : `The payment did not go through.${s.note ? ` (${s.note})` : ""}`); setPhase("failed"); }
         } catch { /* keep trying */ }
         if (tries > 40) { window.clearInterval(poll.current); setErr("We did not get a reply from M-Pesa. If money was taken, call us and we will confirm it."); setPhase("failed"); }
       }, 3000);
