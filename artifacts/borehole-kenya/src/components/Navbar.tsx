@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, ShoppingCart, Droplets, LogIn, Home, Info, Wrench, Store, FolderOpen, PlayCircle, Coins, Phone, MessageCircle, ShieldCheck, ArrowRight } from "lucide-react";
+import { Menu, X, ShoppingCart, Droplets, LogIn, Home, Info, Wrench, Store, FolderOpen, PlayCircle, Coins, Phone, MessageCircle, ShieldCheck, ArrowRight, Wallet } from "lucide-react";
 import { memberToken } from "@/lib/member";
 import { Button } from "@/components/ui/button";
 import { useGetCart } from "@workspace/api-client-react";
 import { getCartSessionId, whatsappLink } from "@/lib/utils";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { LiveTitle } from "@/components/LiveTitle";
+import { openPay } from "@/components/PayDialog";
 import InstallApp from "@/components/InstallApp";
 
 const navLinks = [
@@ -80,7 +81,7 @@ export default function Navbar() {
 
           {/* Right actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <WhatsAppButton />
+            <div className="hidden min-[420px]:block"><WhatsAppButton /></div>
             <Link href="/cart" className="relative p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
               <ShoppingCart className="h-5 w-5 text-foreground/70" />
               {cartCount > 0 && (
@@ -89,6 +90,16 @@ export default function Navbar() {
                 </span>
               )}
             </Link>
+
+            <button
+              type="button"
+              onClick={() => openPay()}
+              data-testid="button-pay"
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-extrabold text-white shadow-md ring-1 ring-white/30 transition hover:shadow-lg active:scale-95 sm:px-4 sm:text-sm"
+              style={{ background: "linear-gradient(135deg, hsl(155 56% 24%), hsl(160 60% 30%) 55%, hsl(199 80% 42%))" }}
+            >
+              <Wallet className="h-4 w-4" /> Pay
+            </button>
 
             <Button asChild size="sm" className="hidden sm:inline-flex lg:hidden xl:inline-flex">
               <Link href="/contact">Get Free Quote</Link>

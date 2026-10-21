@@ -1,4 +1,4 @@
-const API = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
+export const API = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
 const store = {
   get: (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } },
   set: (k: string, v: string) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* ignore */ } },

@@ -25,6 +25,27 @@ services:
       # The password for /admin. Type a strong one in the Render dashboard.
       - key: ADMIN_KEY
         sync: false
+      # Payments: M-Pesa (Safaricom Daraja) and bank details. Fill these in the Render dashboard, never in the code.
+      - key: MPESA_ENV
+        sync: false
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_SHORTCODE
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: MPESA_TYPE
+        sync: false
+      - key: BANK_NAME
+        sync: false
+      - key: BANK_ACCOUNT_NAME
+        sync: false
+      - key: BANK_ACCOUNT_NUMBER
+        sync: false
+      - key: BANK_BRANCH
+        sync: false
       # Signs member log-ins. Render makes a random value for you.
       - key: MEMBER_SECRET
         generateValue: true

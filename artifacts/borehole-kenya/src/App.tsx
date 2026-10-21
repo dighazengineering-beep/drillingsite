@@ -24,6 +24,7 @@ import Account from "@/pages/Account";
 import { captureRef } from "@/lib/member";
 import NotFound from "@/pages/not-found";
 import { hydrateCache, persistCache, prefetchSite } from "@/lib/prefetch";
+import PayDialog from "@/components/PayDialog";
 import PagePopup from "@/components/OfferPopup";
 import LiveTicker, { tickerHidden } from "@/components/LiveTicker";
 import LiveBackdrop from "@/components/LiveBackdrop";
@@ -65,6 +66,7 @@ function Router() {
       {!loc.startsWith("/feed") && <Footer />}
       <LiveTicker />
       <PagePopup />
+      <PayDialog />
     </div>
   );
 }
