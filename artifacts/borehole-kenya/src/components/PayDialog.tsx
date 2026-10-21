@@ -8,7 +8,8 @@ type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
 interface Item { name: string; price: number | null }
 interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
-interface Cfg { mpesa: boolean; bank: { bankName: string; accountName: string; accountNumber: string } | null }
+interface Bank { bankName: string; accountName: string; accountNumber: string }
+interface Cfg { mpesa: boolean; banks: Bank[] }
 
 const DEPOSIT_PCT = 70; // share of the agreed price taken as the deposit (the client can change the amount)
 const inp = "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25";
@@ -33,7 +34,7 @@ export default function PayDialog() {
   const [method, setMethod] = useState<"mpesa" | "bank">("mpesa");
   const [bankRef, setBankRef] = useState("");
   const [img, setImg] = useState("");
-  const [cfg, setCfg] = useState<Cfg>({ mpesa: true, bank: null });
+  const [cfg, setCfg] = useState<Cfg>({ mpesa: true, banks: [] });
   const [bal, setBal] = useState<Bal | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -66,7 +67,7 @@ export default function PayDialog() {
         product: (Array.isArray(p) ? p : (p?.items ?? [])).map((x: any) => ({ name: x.name, price: x.price != null ? Number(x.price) : null })),
       });
     });
-    fetch(`${API}/api/payments/config`).then((r) => r.json()).then((c: Cfg) => { setCfg(c); if (!c.mpesa && c.bank) setMethod("bank"); }).catch(() => {});
+    fetch(`${API}/api/payments/config`).then((r) => r.json()).then((c: Cfg) => { setCfg(c); if (!c.mpesa && c.banks?.length) setMethod("bank"); }).catch(() => {});
     if (memberToken()) memberApi<{ member: { name: string; phone: string } }>("/me").then((d) => { setName((v) => v || d.member.name || ""); setPhone((v) => v || d.member.phone || ""); }).catch(() => {});
   }, [open]);
 
@@ -236,21 +237,26 @@ export default function PayDialog() {
                   </div>
                 </div>
 
-                <div className={`grid gap-1 rounded-xl bg-muted p-1 ${cfg.bank && cfg.mpesa ? "grid-cols-2" : "grid-cols-1"}`}>
+                <div className={`grid gap-1 rounded-xl bg-muted p-1 ${cfg.banks.length > 0 && cfg.mpesa ? "grid-cols-2" : "grid-cols-1"}`}>
                   {cfg.mpesa && (
                     <button type="button" onClick={() => setMethod("mpesa")} className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition ${method === "mpesa" ? "bg-card text-primary shadow" : "text-muted-foreground"}`}><Smartphone className="h-3.5 w-3.5" /> M-Pesa</button>
                   )}
-                  {cfg.bank && (
+                  {cfg.banks.length > 0 && (
                     <button type="button" onClick={() => setMethod("bank")} className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition ${method === "bank" ? "bg-card text-primary shadow" : "text-muted-foreground"}`}><Landmark className="h-3.5 w-3.5" /> Bank transfer</button>
                   )}
                 </div>
 
-                {method === "bank" && cfg.bank && (
+                {method === "bank" && cfg.banks.length > 0 && (
                   <div className="space-y-2 rounded-xl border border-border bg-background p-3 text-xs">
-                    {([["Bank", cfg.bank.bankName], ["Account name", cfg.bank.accountName], ["Account number", cfg.bank.accountNumber]] as const).filter(([, v]) => v).map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between gap-2"><span className="text-muted-foreground">{k}</span><span className="font-semibold text-foreground">{v}</span></div>
+                    {cfg.banks.map((bk) => (
+                      <div key={bk.accountNumber} className="rounded-lg bg-muted/60 p-2.5">
+                        <div className="flex items-center justify-between gap-2"><span className="font-bold text-foreground">{bk.bankName}</span>
+                          <button type="button" onClick={() => copy(bk.accountNumber)} className="flex items-center gap-1 text-[11px] font-semibold text-primary"><Copy className="h-3 w-3" /> Copy</button></div>
+                        <div className="mt-1 text-muted-foreground">{bk.accountName}</div>
+                        <div className="text-sm font-extrabold tracking-wide text-foreground">{bk.accountNumber}</div>
+                      </div>
                     ))}
-                    <button type="button" onClick={() => copy(cfg.bank!.accountNumber)} className="flex items-center gap-1 text-[11px] font-semibold text-primary"><Copy className="h-3 w-3" /> {copied ? "Copied" : "Copy account number"}</button>
+                    {copied && <p className="text-[11px] font-semibold text-primary">Account number copied</p>}
                     <div>
                       <label className={lab}>Payment receipt</label>
                       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 py-2.5 text-xs font-semibold text-primary">
@@ -266,10 +272,10 @@ export default function PayDialog() {
                   </div>
                 )}
 
-                {!cfg.mpesa && !cfg.bank && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Online payment is not switched on yet. Please call us to pay.</p>}
+                {!cfg.mpesa && !cfg.banks.length && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Online payment is not switched on yet. Please call us to pay.</p>}
                 {err && <p className="flex items-start gap-1.5 text-xs text-red-600"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{err}</p>}
 
-                <button type="button" onClick={submit} disabled={busy || done || (!cfg.mpesa && !cfg.bank)} data-testid="pay-submit"
+                <button type="button" onClick={submit} disabled={busy || done || (!cfg.mpesa && !cfg.banks.length)} data-testid="pay-submit"
                   className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-extrabold text-white shadow-lg transition active:scale-[.98] disabled:opacity-50"
                   style={{ background: method === "mpesa" ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg, hsl(155 56% 24%), hsl(199 80% 38%))" }}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : method === "mpesa" ? <Smartphone className="h-4 w-4" /> : <Landmark className="h-4 w-4" />}

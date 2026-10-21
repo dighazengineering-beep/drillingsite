@@ -114,11 +114,17 @@ async function notifyPaid(id: number) {
 }
 
 /* ------------------------------------------------------------- public */
+/** Bank accounts to show. BANK_ACCOUNTS = "Bank|Account name|Account number;Bank|Account name|Account number" (or the single BANK_* variables). */
+function bankAccounts() {
+  const multi = (process.env.BANK_ACCOUNTS ?? "").split(";").map((x) => x.split("|").map((y) => y.trim())).filter((x) => x.length >= 3 && x[2])
+    .map(([bankName, accountName, accountNumber]) => ({ bankName, accountName, accountNumber }));
+  if (multi.length) return multi;
+  return process.env.BANK_ACCOUNT_NUMBER
+    ? [{ bankName: process.env.BANK_NAME ?? "", accountName: process.env.BANK_ACCOUNT_NAME ?? "", accountNumber: process.env.BANK_ACCOUNT_NUMBER }]
+    : [];
+}
 router.get("/payments/config", (_req, res) => {
-  const bank = process.env.BANK_ACCOUNT_NUMBER
-    ? { bankName: process.env.BANK_NAME ?? "", accountName: process.env.BANK_ACCOUNT_NAME ?? "", accountNumber: process.env.BANK_ACCOUNT_NUMBER }
-    : null;
-  res.json({ mpesa: mpesaReady(), bank });
+  res.json({ mpesa: mpesaReady(), banks: bankAccounts() });
 });
 
 router.get("/payments/balance", async (req, res) => {
