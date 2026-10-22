@@ -11,6 +11,7 @@ interface Bal { found: boolean; agreedTotal: number; paid: number; pending: numb
 interface Bank { bankName: string; accountName: string; accountNumber: string; paybill?: string }
 interface Cfg { mpesa: boolean; banks: Bank[] }
 
+const STEEL_RATE = 6500; // steel casing price per metre (PVC uses the price set on the service)
 const DEPOSIT_PCT = 70; // share of the agreed price taken as the deposit (the client can change the amount)
 const inp = "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25";
 const lab = "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
@@ -27,6 +28,7 @@ export default function PayDialog() {
   const [item, setItem] = useState("");
   const [payType, setPayType] = useState<PayType>("deposit");
   const [total, setTotal] = useState("");
+  const [casing, setCasing] = useState<"pvc" | "steel">("pvc");
   const [rate, setRate] = useState("");
   const [depth, setDepth] = useState("");
   const [amount, setAmount] = useState("");
@@ -84,10 +86,11 @@ export default function PayDialog() {
   // choosing an item fills the catalogue price (the client may overwrite it with the agreed price)
   const perMetre = kind === "service" && /metre|meter/i.test(chosen?.unit ?? "");
   useEffect(() => {
-    if (perMetre) { setRate(chosen?.price ? String(Math.round(chosen.price)) : ""); setDepth(""); setTotal(""); }
+    if (perMetre) { setCasing("pvc"); setRate(chosen?.price ? String(Math.round(chosen.price)) : ""); setDepth(""); setTotal(""); }
     else if (chosen?.price) setTotal(String(Math.round(chosen.price)));
     else if (item) setTotal("");
   }, [item, kind, chosen?.price, perMetre]);
+  const pickCasing = (c: "pvc" | "steel") => { setCasing(c); setRate(c === "steel" ? String(STEEL_RATE) : chosen?.price ? String(Math.round(chosen.price)) : ""); };
   const existing = !!(bal?.found && bal.paid > 0); // a job already being paid keeps its agreed price
   useEffect(() => { if (perMetre && !existing) setTotal(money(rate) && money(depth) ? String(money(rate) * money(depth)) : ""); }, [rate, depth, perMetre, existing]);
   useEffect(() => { setItem((v) => (items[kind].some((i) => i.name === v) ? v : "")); }, [kind, items]);
@@ -220,6 +223,13 @@ export default function PayDialog() {
                   ))}
                 </div>
 
+                {perMetre && !existing && (
+                  <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+                    {([["pvc", "PVC casing"], ["steel", "Steel casing"]] as const).map(([k, n]) => (
+                      <button key={k} type="button" onClick={() => pickCasing(k)} className={`rounded-lg py-1.5 text-xs font-bold transition ${casing === k ? "bg-card text-primary shadow" : "text-muted-foreground"}`}>{n}</button>
+                    ))}
+                  </div>
+                )}
                 {perMetre && !existing && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>

@@ -48,7 +48,7 @@ export default function Purification() {
             <a href="#quote">Get a Quote <ArrowRight className="ml-1.5 h-4 w-4" /></a>
           </Button>
           <Button asChild variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white">
-            <a href="tel:+254110699444"><Phone className="mr-2 h-4 w-4" /> Call</a>
+            <a href="tel:+254719117660"><Phone className="mr-2 h-4 w-4" /> Call</a>
           </Button>
         </div>
       </PageBanner>

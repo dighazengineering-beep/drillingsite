@@ -7,7 +7,7 @@ const LINES = [
   "Free site visit across Kenya",
   `Hydrogeological survey ${formatKES(OFFER_PRICE)} (was ${formatKES(REGULAR_PRICE)})`,
   "Borehole drilling · Pumps · Solar · Water purification",
-  "Call 0110 699 444 or WhatsApp 0719 117 660",
+  "Call or WhatsApp 0719 117 660",
 ];
 
 /** Pages where the ticker is hidden (full-screen video feed and the admin panel). */

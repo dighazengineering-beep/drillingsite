@@ -39,7 +39,7 @@ export function pickImage(...texts: (string | undefined | null)[]): string {
 
 /** Where to focus when a photo is cropped, so the important part stays in view. */
 const POSITIONS: Record<string, string> = {
-  [IMAGES.drilling]: "center 80%", // branded truck and driller
+  [IMAGES.drilling]: "center 50%",
   [IMAGES.survey]: "center 55%",
   [IMAGES.inspection]: "center 40%",
   [IMAGES.testPumping]: "center 35%",

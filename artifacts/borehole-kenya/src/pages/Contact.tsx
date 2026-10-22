@@ -24,9 +24,8 @@ interface ContactForm {
 }
 
 const contactInfo = [
-  { icon: Phone, label: "Phone", value: "+254 110 699 444", href: "tel:+254110699444" },
-  { icon: Phone, label: "Phone", value: "+254 742 810 199", href: "tel:+254742810199" },
-  { icon: MessageSquare, label: "WhatsApp", value: "+254 719 117 660", href: "https://wa.me/254719117660" },
+  { icon: Phone, label: "Phone & WhatsApp", value: "+254 719 117 660", href: "tel:+254719117660" },
+  { icon: Phone, label: "Other phone", value: "+254 742 810 199", href: "tel:+254742810199" },
   { icon: Mail, label: "Email", value: "info@dighazengineering.com", href: "mailto:info@dighazengineering.com" },
   { icon: Mail, label: "Support", value: "support@dighazengineering.com", href: "mailto:support@dighazengineering.com" },
   { icon: Mail, label: "Email", value: "dighazengineering@gmail.com", href: "mailto:dighazengineering@gmail.com" },
@@ -91,9 +90,9 @@ export default function Contact() {
               <MessageSquare className="mr-2 h-4 w-4" /> Chat on WhatsApp
             </Button>
           </a>
-          <a href="tel:+254110699444" className="flex-1">
+          <a href="tel:+254719117660" className="flex-1">
             <Button variant="outline" className="w-full h-10 border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white text-sm">
-              <Phone className="mr-2 h-4 w-4" /> +254 110 699 444
+              <Phone className="mr-2 h-4 w-4" /> +254 719 117 660
             </Button>
           </a>
         </div>
@@ -231,9 +230,9 @@ export default function Contact() {
               <div className="rounded-xl border border-red-200 bg-red-50 p-4">
                 <div className="text-sm font-semibold text-red-700 mb-1"><LiveTitle level="sub" text="Urgent help" hi="#dc2626" /></div>
                 <p className="text-xs text-red-600 mb-3">For pump failures and urgent water supply problems, call us.</p>
-                <a href="tel:+254110699444">
+                <a href="tel:+254719117660">
                   <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white w-full h-8 text-xs">
-                    <Phone className="mr-2 h-3.5 w-3.5" /> +254 110 699 444
+                    <Phone className="mr-2 h-3.5 w-3.5" /> +254 719 117 660
                   </Button>
                 </a>
               </div>

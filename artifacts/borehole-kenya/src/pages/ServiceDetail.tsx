@@ -248,8 +248,8 @@ export default function ServiceDetail() {
 
                 <div className="mt-5 pt-4 border-t border-border text-center">
                   <p className="text-xs text-muted-foreground mb-2">Or call us directly</p>
-                  <a href="tel:+254110699444" className="flex items-center justify-center gap-2 text-sm font-medium text-primary hover:text-primary/80">
-                    <Phone className="h-3.5 w-3.5" /> +254 110 699 444
+                  <a href="tel:+254719117660" className="flex items-center justify-center gap-2 text-sm font-medium text-primary hover:text-primary/80">
+                    <Phone className="h-3.5 w-3.5" /> +254 719 117 660
                   </a>
                 </div>
               </CardContent>

@@ -54,7 +54,7 @@ export default function Privacy() {
         <p className={p}>
           Dighaz Engineering Limited, Rhapta Rd, Westlands, Nairobi, Kenya<br />
           Email: info@dighazengineering.com · dighazengineering@gmail.com<br />
-          Phone: +254 110 699 444 · +254 742 810 199 · WhatsApp: +254 719 117 660
+          Phone and WhatsApp: +254 719 117 660 · +254 742 810 199
         </p>
 
         <p className={`${p} mt-5`}>We may update this policy from time to time. The date at the top shows when it last changed.</p>

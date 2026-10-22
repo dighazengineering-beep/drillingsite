@@ -1,5 +1,5 @@
 import { db, productsTable, servicesTable, projectsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { NEW_PROJECTS, PROJECT_UPDATES } from "./projectsData";
 import { MORE_PROJECTS } from "./projectsMore";
 import { PROJECT_STORIES, PROJECT_RENAMES } from "./projectStories";
@@ -26,6 +26,35 @@ export async function applyCatalogFixes() {
       .update(productsTable)
       .set({ price: "680000.00", comparePrice: null })
       .where(and(eq(productsTable.slug, "reverse-osmosis-500lph"), eq(productsTable.price, "380000.00")));
+    // New prices (survey 35,000; drilling PVC 6,000 and steel 6,500 per metre). Only changed while the old price is still there, so later admin edits are kept.
+    await db
+      .update(servicesTable)
+      .set({
+        priceFrom: "6000",
+        priceUnit: "per metre (PVC casing)",
+        description:
+          "We provide a comprehensive borehole drilling solution that covers the full drilling phase. Our service includes open drilling with proper casing to ensure borehole stability, gravel installation to secure the structure and maintain integrity, and a detailed 24-hour pump test to assess well performance and ensure optimal functionality.\n\nCasing pricing:\n• PVC Casing — Ksh. 6,000 per metre\n• Steel Casing — Ksh. 6,500 per metre\n\nPrices are indicative and we are happy to negotiate a small discount once you are ready to proceed. We are committed to exceptional quality and building a trusted partnership with you.",
+        highlights: [
+          "Includes open drilling and borehole casing",
+          "Gravel pack installation for structural integrity",
+          "24-hour pump test included",
+          "PVC casing: Ksh 6,000/m · Steel casing: Ksh 6,500/m",
+          "Drilling depth up to 300m",
+          "Serves clients across Kenya",
+        ],
+      })
+      .where(and(eq(servicesTable.slug, "borehole-drilling"), sql`${servicesTable.priceFrom}::numeric = 5650`));
+    const [survey] = await db.select().from(servicesTable).where(and(eq(servicesTable.slug, "hydrogeological-surveys"), sql`${servicesTable.priceFrom}::numeric = 30000`));
+    if (survey) {
+      await db
+        .update(servicesTable)
+        .set({
+          priceFrom: "35000",
+          description: survey.description.replace("Survey cost: Ksh. 30,000", "Survey cost: Ksh. 35,000"),
+          highlights: (Array.isArray(survey.highlights) ? survey.highlights : []).map((h: string) => h.replace("Survey cost: Ksh 30,000", "Survey cost: Ksh 35,000")),
+        })
+        .where(eq(servicesTable.id, survey.id));
+    }
     // New product: JA Solar Panel 550W (inserted once if missing)
     const existing = await db
       .select({ id: productsTable.id })

@@ -39,7 +39,7 @@ export default function Footer() {
             <div className="text-white font-semibold uppercase tracking-wider text-[11px] mb-1.5 text-center"><LiveTitle level="sub" text="Contact" hi="#bae6fd" /></div>
             <ul className="mx-auto grid w-fit grid-cols-2 gap-x-6 gap-y-1.5">
               <li>
-                <a href="tel:+254110699444" className={`flex items-center gap-1.5 ${link}`}>
+                <a href="tel:+254719117660" className={`flex items-center gap-1.5 ${link}`}>
                   <Phone className="h-3.5 w-3.5 shrink-0" /> Call Us Now
                 </a>
               </li>

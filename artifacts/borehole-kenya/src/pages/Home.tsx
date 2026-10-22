@@ -111,7 +111,7 @@ export default function Home() {
               <Link href="/contact">Get Free Quote <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button asChild variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white">
-              <a href="tel:+254110699444"><Phone className="mr-2 h-4 w-4" /> Call</a>
+              <a href="tel:+254719117660"><Phone className="mr-2 h-4 w-4" /> Call</a>
             </Button>
             <Button asChild variant="outline" className="border-white/25 bg-white/10 text-white shadow-sm hover:bg-white/20 hover:text-white" data-testid="button-hero-login">
               <Link href={memberToken() ? "/account" : "/join?mode=login"}><UserRound className="mr-2 h-4 w-4" /> {memberToken() ? "My account" : "Log in"}</Link>

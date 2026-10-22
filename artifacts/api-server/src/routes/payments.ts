@@ -387,7 +387,7 @@ router.post("/payments-admin/:id/:action", async (req, res) => {
     if (action === "confirm") await notifyPaid(r.rows[0].id);
     else {
       const q = await pool.query("SELECT phone, item FROM payments WHERE id=$1", [r.rows[0].id]);
-      await notify(q.rows[0].phone, "Bank payment not confirmed", `We could not confirm your bank payment for ${q.rows[0].item}. Please call us on +254 110 699 444.`);
+      await notify(q.rows[0].phone, "Bank payment not confirmed", `We could not confirm your bank payment for ${q.rows[0].item}. Please call us on +254 719 117 660.`);
     }
     res.json({ ok: true });
   } catch { res.status(500).json({ error: "Could not update." }); }

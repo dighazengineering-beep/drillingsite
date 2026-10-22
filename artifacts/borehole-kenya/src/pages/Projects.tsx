@@ -243,8 +243,8 @@ export default function Projects() {
           <span className="text-sm font-semibold text-foreground"><LiveTitle level="sub" text="Start your own water project" hi="#0ea5e9" /></span>
           <div className="flex gap-2">
             <Button asChild size="sm" className="h-8 text-xs"><Link href="/contact">Request a Free Quote</Link></Button>
-            <a href="tel:+254110699444">
-              <Button size="sm" variant="outline" className="h-8 text-xs">Call +254 110 699 444</Button>
+            <a href="tel:+254719117660">
+              <Button size="sm" variant="outline" className="h-8 text-xs">Call +254 719 117 660</Button>
             </a>
           </div>
         </div>

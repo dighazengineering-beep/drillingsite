@@ -22,7 +22,7 @@ const navLinks = [
   { href: "/privacy", label: "Privacy", Icon: ShieldCheck },
   { href: "/contact", label: "Contact", Icon: Phone },
 ];
-const CALL_NUMBER = "+254110699444";
+const CALL_NUMBER = "+254719117660";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
