@@ -9,8 +9,8 @@ import { formatKES, whatsappLink } from "@/lib/utils";
 import { LiveTitle, Key } from "@/components/LiveTitle";
 
 // Edit these two numbers to change the offer.
-export const REGULAR_PRICE = 35000;
-export const OFFER_PRICE = 33250;
+export const REGULAR_PRICE = 36842;
+export const OFFER_PRICE = 35000;
 
 // Every other service: this percent off when the customer contacts us today.
 export const DISCOUNT_PCT = 5;
