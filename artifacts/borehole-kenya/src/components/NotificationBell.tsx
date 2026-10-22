@@ -11,6 +11,12 @@ const ls = {
 };
 export const rememberPhone = (p: string) => { if (p.replace(/\D/g, "").length >= 9) ls.set("dighaz_phone", p); };
 
+// The server gives the payer a key when they pay. It is needed to read that phone's notifications, balances and receipts.
+const tail = (p: string) => p.replace(/\D/g, "").slice(-9);
+const keyMap = (): Record<string, string> => { try { return JSON.parse(ls.get("dighaz_keys") || "{}"); } catch { return {}; } };
+export const rememberKey = (phone: string, key?: string) => { if (key) ls.set("dighaz_keys", JSON.stringify({ ...keyMap(), [tail(phone)]: key })); };
+export const keyFor = (phone: string) => keyMap()[tail(phone)] ?? "";
+
 const WELCOME: Note[] = [
   { id: "w1", kind: "info", title: "Welcome to Dighaz Engineering", body: "Borehole drilling, surveys, pumps, solar and water treatment from one team.", link: "/services" },
   { id: "w2", kind: "info", title: "See our successful boreholes", body: "Watch real boreholes our crews have completed, with videos from site.", link: "/feed" },
@@ -32,7 +38,7 @@ export default function NotificationBell() {
     setPhone(ph);
     if (!ph) return;
     try {
-      const d = await fetch(`${API}/api/payments/notifications?phone=${encodeURIComponent(ph)}`).then((r) => r.json());
+      const d = await fetch(`${API}/api/payments/notifications?phone=${encodeURIComponent(ph)}&key=${encodeURIComponent(keyFor(ph))}`).then((r) => r.json());
       setPay((Array.isArray(d) ? d : []).map((n: any) => ({ id: `p${n.id}`, kind: "pay" as const, title: n.title, body: n.body, link: n.link, at: n.createdAt })));
     } catch { /* offline */ }
   }, []);

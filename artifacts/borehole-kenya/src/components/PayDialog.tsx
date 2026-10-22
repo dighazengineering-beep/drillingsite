@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Smartphone, Landmark, CheckCircle2, Loader2, Wallet, ShieldCheck, Copy, AlertCircle, Upload } from "lucide-react";
-import { rememberPhone } from "@/components/NotificationBell";
+import { rememberPhone, rememberKey, keyFor } from "@/components/NotificationBell";
 import { API, memberApi, memberToken, kes } from "@/lib/member";
 
 type Kind = "service" | "product";
@@ -98,7 +98,7 @@ export default function PayDialog() {
     setBal(null);
     if (!open || !phoneOk || !item) return;
     const t = window.setTimeout(() => {
-      fetch(`${API}/api/payments/balance?phone=${encodeURIComponent(phone)}&item=${encodeURIComponent(item)}`)
+      fetch(`${API}/api/payments/balance?phone=${encodeURIComponent(phone)}&item=${encodeURIComponent(item)}&key=${encodeURIComponent(keyFor(phone))}`)
         .then((r) => r.json()).then((b: Bal) => {
           setBal(b);
           if (b.found && b.paid > 0) { setTotal(String(b.agreedTotal)); setPayType(b.balance > 0 ? "balance" : "full"); setAmountTouched(false); }
@@ -141,14 +141,14 @@ export default function PayDialog() {
       const r = await fetch(`${API}/api/payments/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong.");
-      rememberPhone(phone); window.dispatchEvent(new Event("dighaz:phone"));
+      rememberPhone(phone); rememberKey(phone, d.key); window.dispatchEvent(new Event("dighaz:phone"));
       if (method === "bank") { setPhase("bank"); setBusy(false); return; }
       setPhase("wait");
       let tries = 0;
       poll.current = window.setInterval(async () => {
         tries++;
         try {
-          const s = await fetch(`${API}/api/payments/${d.id}/status`).then((x) => x.json());
+          const s = await fetch(`${API}/api/payments/${d.id}/status?key=${encodeURIComponent(d.key ?? "")}`).then((x) => x.json());
           if (s.status === "paid") { window.clearInterval(poll.current); setReceipt(s.receipt || ""); setPhase("paid"); }
           else if (s.status === "failed" || s.status === "cancelled") { window.clearInterval(poll.current); setErr(s.status === "cancelled" ? "The payment was cancelled on your phone." : `The payment did not go through.${s.note ? ` (${s.note})` : ""}`); setPhase("failed"); }
         } catch { /* keep trying */ }

@@ -48,6 +48,33 @@ function ensureTables() {
   return ready;
 }
 
+/* ------------------------------------------------------------- safety */
+// One server-only secret signs the M-Pesa reply address and the per-payer keys. MEMBER_SECRET is preferred; if it is missing another
+// server-only value is used, and with none at all payments stay switched off (a made-up default would be guessable).
+const baseSecret = () => process.env.MEMBER_SECRET || process.env.ADMIN_KEY || process.env.MPESA_CONSUMER_SECRET || "";
+const hmac = (data: string) => crypto.createHmac("sha256", baseSecret()).update(data).digest("hex");
+/** Handed to the payer when they pay. Only someone who paid from this phone can read its notifications, balances and receipts. */
+const viewKey = (phone: string) => hmac(`view:${phone}`).slice(0, 32);
+const keyOk = (phone: string | null, key: unknown) => {
+  if (!phone || !baseSecret() || typeof key !== "string" || key.length !== 32) return false;
+  const good = Buffer.from(viewKey(phone));
+  const got = Buffer.from(key);
+  return got.length === good.length && crypto.timingSafeEqual(got, good);
+};
+
+// Light limits so nobody can use the site to flood phones with M-Pesa prompts (kept in memory, per server).
+const hits = new Map<string, number[]>();
+function limited(key: string, max: number, windowMs = 600_000) {
+  const now = Date.now();
+  if (hits.size > 5000) for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
+  const list = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (list.length >= max) { hits.set(key, list); return true; }
+  list.push(now);
+  hits.set(key, list);
+  return false;
+}
+const SLOW_DOWN = "Too many payment attempts. Please wait a few minutes and try again.";
+
 const str = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "")); return Number.isFinite(n) ? Math.round(n) : NaN; };
 /** 07xx / 01xx / +254 / 254 -> 2547xxxxxxxx */
@@ -133,7 +160,7 @@ router.get("/payments/balance", async (req, res) => {
     await ensureTables();
     const phone = normPhone(req.query.phone);
     const item = str(req.query.item, 140);
-    if (!phone || !item) { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); return; }
+    if (!phone || !item || !keyOk(phone, req.query.key)) { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); return; }
     res.json(await jobBalance(phone, item));
   } catch { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); }
 });
@@ -142,7 +169,7 @@ router.get("/payments/notifications", async (req, res) => {
   try {
     await ensureTables();
     const phone = normPhone(req.query.phone);
-    if (!phone) { res.json([]); return; }
+    if (!phone || !keyOk(phone, req.query.key)) { res.json([]); return; }
     const r = await pool.query('SELECT id, title, body, link, created_at AS "createdAt" FROM notifications WHERE phone=$1 ORDER BY id DESC LIMIT 20', [phone]);
     res.json(r.rows);
   } catch { res.json([]); }
@@ -151,16 +178,20 @@ router.get("/payments/notifications", async (req, res) => {
 router.get("/payments/:id/status", async (req, res) => {
   try {
     await ensureTables();
-    const r = await pool.query("SELECT status, receipt, amount, note FROM payments WHERE id=$1", [Number(req.params.id) || 0]);
+    const id = Number(req.params.id) || 0;
+    await reconcile(id).catch(() => {}); // ask Safaricom if the reply never reached us
+    const r = await pool.query("SELECT status, receipt, amount, note, phone FROM payments WHERE id=$1", [id]);
     if (!r.rows[0]) { res.status(404).json({ error: "Not found" }); return; }
+    // Without the payer's key only the status word is given, never the receipt number, amount or note
+    if (!keyOk(r.rows[0].phone, req.query.key)) { res.json({ status: r.rows[0].status }); return; }
     res.json({ status: r.rows[0].status, receipt: r.rows[0].receipt, amount: Number(r.rows[0].amount), note: r.rows[0].note });
   } catch { res.status(500).json({ error: "Could not check the payment." }); }
 });
 
 /* ------------------------------------------------------------- M-Pesa */
-const mpesaReady = () => !!(process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET && process.env.MPESA_SHORTCODE && process.env.MPESA_PASSKEY);
+const mpesaReady = () => !!baseSecret() && !!(process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET && process.env.MPESA_SHORTCODE && process.env.MPESA_PASSKEY);
 const mpesaBase = () => process.env.MPESA_BASE_URL || (process.env.MPESA_ENV === "live" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke");
-const callbackSecret = () => crypto.createHmac("sha256", process.env.MEMBER_SECRET ?? "dev").update("mpesa-callback").digest("hex").slice(0, 24);
+const callbackSecret = () => crypto.createHmac("sha256", baseSecret()).update("mpesa-callback").digest("hex").slice(0, 24);
 
 let tokenCache: { t: string; exp: number } | null = null;
 async function mpesaToken(): Promise<string> {
@@ -174,12 +205,54 @@ async function mpesaToken(): Promise<string> {
 }
 const stamp = () => new Date(Date.now() + 3 * 3600_000).toISOString().replace(/\D/g, "").slice(0, 14);
 
+/**
+ * Ask Safaricom what happened to a prompt that is still "pending" (their reply to us can get lost).
+ * Success -> paid, cancelled/failed -> closed, still being processed -> left alone (closed after 15 minutes with no answer).
+ */
+const lastAsked = new Map<number, number>();
+async function reconcile(id: number) {
+  if (!id || !mpesaReady()) return;
+  const now = Date.now();
+  if ((lastAsked.get(id) ?? 0) > now - 15_000) return;
+  lastAsked.set(id, now);
+  if (lastAsked.size > 2000) lastAsked.clear();
+  const r = await pool.query("SELECT checkout_id, status, method, note, EXTRACT(EPOCH FROM (NOW() - created_at))::int AS age FROM payments WHERE id=$1", [id]);
+  const p = r.rows[0];
+  if (!p || p.status !== "pending" || p.method !== "mpesa" || !p.checkout_id || p.age < 40) return;
+  if (String(p.note).startsWith("Amount received differs")) return; // money arrived but not the amount asked: a person must check it
+  const ts = stamp();
+  const shortcode = process.env.MPESA_SHORTCODE!;
+  let d: any = {};
+  try {
+    const token = await mpesaToken();
+    const q = await fetch(`${mpesaBase()}/mpesa/stkpushquery/v1/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ BusinessShortCode: shortcode, Password: Buffer.from(shortcode + process.env.MPESA_PASSKEY + ts).toString("base64"), Timestamp: ts, CheckoutRequestID: p.checkout_id }),
+    });
+    d = await q.json().catch(() => ({}));
+  } catch { return; }
+  if (d.ResultCode === undefined || d.ResultCode === null || d.ResultCode === "") {
+    // "still being processed" (or no answer): close it only after a long silence
+    if (p.age > 900) await pool.query("UPDATE payments SET status='failed', note='No reply from M-Pesa' WHERE id=$1 AND status='pending'", [id]);
+    return;
+  }
+  const code = Number(d.ResultCode);
+  if (code === 0) {
+    const up = await pool.query("UPDATE payments SET status='paid', note='Confirmed by a check with Safaricom' WHERE id=$1 AND status='pending' RETURNING id", [id]);
+    if (up.rows[0]) await notifyPaid(id);
+  } else {
+    await pool.query("UPDATE payments SET status=$2, note=$3 WHERE id=$1 AND status='pending'", [id, code === 1032 ? "cancelled" : "failed", String(d.ResultDesc ?? "").slice(0, 200)]);
+  }
+}
+
 router.post("/payments/mpesa", async (req: Request, res: Response) => {
   try {
     await ensureTables();
     if (!mpesaReady()) { res.status(503).json({ error: "M-Pesa is not switched on yet. Please use bank transfer or call us." }); return; }
     const p = parseBody(req.body ?? {});
     if (typeof p === "string") { res.status(400).json({ error: p }); return; }
+    if (limited(`ip:${req.ip ?? "x"}`, 20) || limited(`phone:${p.phone}`, 4)) { res.status(429).json({ error: SLOW_DOWN }); return; }
     const tokenP = mpesaToken().catch((e) => e as Error);
     const ins = await pool.query(
       `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mpesa','pending') RETURNING id`,
@@ -213,7 +286,7 @@ router.post("/payments/mpesa", async (req: Request, res: Response) => {
       const d: any = await r.json().catch(() => ({}));
       if (d.ResponseCode !== "0") throw new Error(d.errorMessage || d.ResponseDescription || "M-Pesa refused the request");
       await pool.query("UPDATE payments SET checkout_id=$1 WHERE id=$2", [d.CheckoutRequestID, id]);
-      res.json({ id, status: "pending" });
+      res.json({ id, status: "pending", key: viewKey(p.phone) });
     } catch (e) {
       await pool.query("UPDATE payments SET status='failed', note=$1 WHERE id=$2", [String((e as Error).message).slice(0, 200), id]);
       res.status(502).json({ error: "Could not send the M-Pesa prompt. Check the number and try again." });
@@ -235,14 +308,16 @@ router.post("/payments/mpesa/callback/:secret", async (req: Request, res: Respon
       const receipt = String(get("MpesaReceiptNumber") ?? "");
       const paidAmt = Number(get("Amount"));
       // Only mark paid when the money received matches what was asked for
-      await pool.query(
+      const up = await pool.query(
         `UPDATE payments SET status = CASE WHEN $3::numeric = amount THEN 'paid' ELSE 'pending' END, receipt=$2,
            note = CASE WHEN $3::numeric = amount THEN '' ELSE 'Amount received differs: check M-Pesa' END
-         WHERE checkout_id=$1 AND status='pending'`,
+         WHERE checkout_id=$1 AND status='pending' RETURNING id, status`,
         [cb.CheckoutRequestID, receipt, Number.isFinite(paidAmt) ? paidAmt : -1],
       );
-      const pid = await pool.query("SELECT id FROM payments WHERE checkout_id=$1 AND status='paid'", [cb.CheckoutRequestID]);
-      if (pid.rows[0]) await notifyPaid(pid.rows[0].id);
+      // if our own check with Safaricom already marked it paid, this reply only adds the receipt number
+      if (receipt) await pool.query("UPDATE payments SET receipt=$2 WHERE checkout_id=$1 AND status='paid' AND receipt=''", [cb.CheckoutRequestID, receipt]);
+      const done = up.rows.find((x) => x.status === "paid");
+      if (done) await notifyPaid(done.id);
     } else {
       const cancelled = Number(cb.ResultCode) === 1032;
       await pool.query("UPDATE payments SET status=$2, note=$3 WHERE checkout_id=$1 AND status='pending'", [
@@ -258,6 +333,7 @@ router.post("/payments/bank", async (req: Request, res: Response) => {
     await ensureTables();
     const p = parseBody(req.body ?? {});
     if (typeof p === "string") { res.status(400).json({ error: p }); return; }
+    if (limited(`bank-ip:${req.ip ?? "x"}`, 20) || limited(`bank-phone:${p.phone}`, 6)) { res.status(429).json({ error: SLOW_DOWN }); return; }
     const bankRef = str(req.body?.bankRef, 600);
     const img = typeof req.body?.receiptImg === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(req.body.receiptImg) && req.body.receiptImg.length < 1_000_000 ? req.body.receiptImg : null;
     if (bankRef.length < 3 && !img) { res.status(400).json({ error: "Upload your payment receipt, or paste the bank message." }); return; }
@@ -266,7 +342,7 @@ router.post("/payments/bank", async (req: Request, res: Response) => {
       [p.phone, p.name, p.email, p.kind, p.item, p.payType, p.amount, p.agreedTotal, bankRef, img],
     );
     await notify(p.phone, "Receipt received", `We received your ${kes(p.amount)} bank payment proof for ${p.item}. We are confirming it now.`);
-    res.json({ id: ins.rows[0].id, status: "pending" });
+    res.json({ id: ins.rows[0].id, status: "pending", key: baseSecret() ? viewKey(p.phone) : undefined });
   } catch { res.status(500).json({ error: "Something went wrong. Please try again." }); }
 });
 
@@ -275,6 +351,8 @@ router.get("/payments-admin/list", async (req, res) => {
   if (!isAdmin(req)) { res.status(403).json({ error: "Admin only" }); return; }
   try {
     await ensureTables();
+    const stale = await pool.query("SELECT id FROM payments WHERE method='mpesa' AND status='pending' AND checkout_id IS NOT NULL AND created_at < NOW() - INTERVAL '1 minute' ORDER BY id DESC LIMIT 8");
+    await Promise.allSettled(stale.rows.map((x) => reconcile(x.id)));
     const r = await pool.query(
       `SELECT id, phone, name, email, kind, item, pay_type AS "payType", amount, agreed_total AS "agreedTotal", method, status, receipt, bank_ref AS "bankRef", (receipt_img IS NOT NULL) AS "hasImg", note, created_at AS "createdAt" FROM payments ORDER BY created_at DESC LIMIT 300`,
     );
