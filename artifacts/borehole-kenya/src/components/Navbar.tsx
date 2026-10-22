@@ -55,7 +55,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex min-w-0 items-center gap-2 group sm:gap-2.5">
+          <Link href="/" className="flex shrink-0 items-center gap-2 group sm:gap-2.5">
             <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-9 w-auto shrink-0 object-contain sm:h-10" />
             <div className="leading-tight">
               <div className="whitespace-nowrap text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span><span className="max-[339px]:hidden"> Engineering</span></div>
@@ -82,7 +82,7 @@ export default function Navbar() {
 
           {/* Right actions */}
           <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
-            <div className="hidden sm:block"><WhatsAppButton /></div>
+            <div className="hidden sm:block lg:hidden xl:block"><WhatsAppButton /></div>
             <NotificationBell />
             <Link href="/cart" className="relative hidden p-1.5 sm:block sm:p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
               <ShoppingCart className="h-5 w-5 text-foreground/70" />
@@ -103,7 +103,7 @@ export default function Navbar() {
               <Wallet className="h-4 w-4" /> Pay
             </button>
 
-            <Button asChild size="sm" className="hidden sm:inline-flex lg:hidden xl:inline-flex">
+            <Button asChild size="sm" className="hidden sm:inline-flex lg:hidden min-[1700px]:inline-flex">
               <Link href="/contact">Get Free Quote</Link>
             </Button>
 

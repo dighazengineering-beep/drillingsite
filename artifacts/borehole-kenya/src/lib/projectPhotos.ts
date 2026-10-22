@@ -118,7 +118,9 @@ const FALLBACK_BY_TYPE: Record<string, ProjectPhoto> = {
   "Borehole Maintenance": photo(IMAGES.pumpInstall, "center 40%"),
 };
 
-export function projectPhoto(title: string | undefined | null, serviceType?: string | null): ProjectPhoto | undefined {
+export function projectPhoto(title: string | undefined | null, serviceType?: string | null, imageUrl?: string | null): ProjectPhoto | undefined {
+  if (imageUrl === "none") return undefined; // photo removed in the admin
+  if (imageUrl && /^https?:\/\//i.test(imageUrl)) return photo(imageUrl); // photo uploaded in the admin
   if (!title) return undefined;
   return PHOTOS[title.trim().toLowerCase()] ?? (serviceType ? FALLBACK_BY_TYPE[serviceType] : undefined);
 }

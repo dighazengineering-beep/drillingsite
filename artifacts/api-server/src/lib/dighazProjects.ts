@@ -1,3 +1,4 @@
+import { deletedSlugs } from "./tombstones";
 import { db, projectsTable } from "@workspace/db";
 import { logger } from "./logger";
 
@@ -29,7 +30,9 @@ const DIGHAZ_PROJECTS = [
 
 export async function seedDighazProjects() {
   try {
-    await db.insert(projectsTable).values(DIGHAZ_PROJECTS as never).onConflictDoNothing({ target: projectsTable.slug });
+    const gone = await deletedSlugs("project");
+    const rows = (DIGHAZ_PROJECTS as { slug: string }[]).filter((x) => !gone.has(x.slug));
+    if (rows.length) await db.insert(projectsTable).values(rows as never).onConflictDoNothing({ target: projectsTable.slug });
   } catch (err) {
     logger.warn({ err }, "Dighaz project seeding failed");
   }

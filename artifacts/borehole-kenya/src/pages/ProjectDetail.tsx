@@ -60,7 +60,7 @@ export default function ProjectDetail() {
       {/* Hero */}
       <div
         className="relative overflow-hidden text-white pt-[76px] pb-6"
-        style={{ background: projectPhoto(project.title, project.serviceType) ? bannerBackground(projectPhoto(project.title, project.serviceType)!.src, projectPhoto(project.title, project.serviceType)!.pos, false) : PLAIN_BANNER }}
+        style={{ background: projectPhoto(project.title, project.serviceType, project.imageUrl) ? bannerBackground(projectPhoto(project.title, project.serviceType, project.imageUrl)!.src, projectPhoto(project.title, project.serviceType, project.imageUrl)!.pos, false) : PLAIN_BANNER }}
       >
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link href="/projects" className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm mb-3 transition-colors">

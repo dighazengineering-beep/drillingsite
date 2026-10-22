@@ -76,7 +76,7 @@ export default function Projects() {
   // Warm the photos for the next page so paging is instant too
   useEffect(() => {
     for (const p of filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)) {
-      const src = projectPhoto(p.title, p.serviceType)?.src;
+      const src = projectPhoto(p.title, p.serviceType, p.imageUrl)?.src;
       if (src) new Image().src = src;
     }
   }, [filtered.length, page, serviceType, clientType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -170,7 +170,7 @@ export default function Projects() {
                     <CardContent className="p-0 flex flex-col h-full">
                       <div className="relative aspect-[3/2] overflow-hidden bg-[hsl(160_52%_14%)]">
                         {(() => {
-                          const photo = projectPhoto(project.title, project.serviceType);
+                          const photo = projectPhoto(project.title, project.serviceType, project.imageUrl);
                           return photo ? (
                             <img
                               src={photo.src}

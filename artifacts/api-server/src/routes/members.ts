@@ -6,7 +6,7 @@ const router = Router();
 
 /* ------------------------------------------------------------------ tables */
 let ready: Promise<unknown> | null = null;
-function ensureTables() {
+export function ensureTables() {
   ready ??= pool
     .query(
       `
@@ -37,6 +37,7 @@ function ensureTables() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS referrals_member_idx ON referrals (member_id, created_at DESC);
+    ALTER TABLE members ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT FALSE;
     CREATE TABLE IF NOT EXISTS member_settings (
       key TEXT PRIMARY KEY,
       value NUMERIC NOT NULL
@@ -144,7 +145,8 @@ export async function memberFrom(req: Request) {
   if (!id) return null;
   await ensureTables();
   const r = await pool.query("SELECT * FROM members WHERE id=$1", [id]);
-  return r.rows[0] ?? null;
+  const m = r.rows[0] ?? null;
+  return m && !m.suspended ? m : null; // a suspended account is signed out everywhere
 }
 
 type Row = {
@@ -220,6 +222,7 @@ router.post("/members/login", async (req: Request, res: Response) => {
     const m = r.rows[0];
     if (m && !m.pass_hash) { res.status(400).json({ error: "This account uses Google. Tap “Continue with Google”." }); return; }
     if (!m || !checkPassword(password, m.pass_hash)) { res.status(401).json({ error: "Wrong email or password." }); return; }
+    if (m.suspended) { res.status(403).json({ error: "This account is suspended. Please contact Dighaz Engineering." }); return; }
     res.json({ token: makeToken(m.id), member: publicMember(m) });
   } catch {
     res.status(500).json({ error: "Could not sign in. Try again." });
@@ -252,6 +255,7 @@ router.post("/members/google", async (req: Request, res: Response) => {
     } else if (!r.rows[0].google_id) {
       await pool.query("UPDATE members SET google_id=$1 WHERE id=$2", [String(info.sub), r.rows[0].id]);
     }
+    if (r.rows[0].suspended) { res.status(403).json({ error: "This account is suspended. Please contact Dighaz Engineering." }); return; }
     res.json({ token: makeToken(r.rows[0].id), member: publicMember(r.rows[0]) });
   } catch {
     res.status(500).json({ error: "Google sign-in failed. Try again." });

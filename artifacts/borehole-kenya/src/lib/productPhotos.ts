@@ -120,6 +120,8 @@ export function applyOverrides<T extends { name: string; description?: string | 
 }
 
 export function productImages(name: string, imageUrl?: string | null): string[] {
+  if (imageUrl === "none") return []; // photo removed in the admin
+  if (imageUrl && /^https?:\/\//i.test(imageUrl)) return [imageUrl]; // photo uploaded in the admin
   const extra = PRODUCT_GALLERY[displayName(name)] ?? PRODUCT_GALLERY[name];
   if (extra?.length) return extra;
   return imageUrl ? [imageUrl] : [];

@@ -82,3 +82,7 @@ export function pageBackdrop(src: string, position = "center 50%") {
     backgroundPosition: position,
   } as const;
 }
+
+/** A service's photo: one uploaded in the admin wins, otherwise the site's default picture. */
+export const serviceImage = (s: { name: string; category: string; imageUrl?: string | null }) =>
+  s.imageUrl && /^https?:\/\//i.test(s.imageUrl) ? s.imageUrl : pickImage(s.name, s.category);

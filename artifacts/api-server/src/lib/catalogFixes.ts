@@ -4,6 +4,7 @@ import { NEW_PROJECTS, PROJECT_UPDATES } from "./projectsData";
 import { MORE_PROJECTS } from "./projectsMore";
 import { PROJECT_STORIES, PROJECT_RENAMES } from "./projectStories";
 import { logger } from "./logger";
+import { deletedSlugs } from "./tombstones";
 
 // Idempotent catalog corrections applied on startup (runs against the live database).
 export async function applyCatalogFixes() {
@@ -60,7 +61,8 @@ export async function applyCatalogFixes() {
       .select({ id: productsTable.id })
       .from(productsTable)
       .where(eq(productsTable.slug, "ja-solar-panel-550w"));
-    if (existing.length === 0) {
+    const goneP = await deletedSlugs("product");
+    if (existing.length === 0 && !goneP.has("ja-solar-panel-550w")) {
       await db.insert(productsTable).values({
         name: "JA Solar Panel 550W",
         slug: "ja-solar-panel-550w",
@@ -84,7 +86,8 @@ export async function applyCatalogFixes() {
       .select({ id: servicesTable.id })
       .from(servicesTable)
       .where(eq(servicesTable.slug, "borehole-inspection"));
-    if (svc.length === 0) {
+    const goneS = await deletedSlugs("service");
+    if (svc.length === 0 && !goneS.has("borehole-inspection")) {
       await db.insert(servicesTable).values({
         name: "Borehole Inspection",
         slug: "borehole-inspection",
@@ -127,7 +130,9 @@ async function applyProjectFixes() {
       }
       await db.update(projectsTable).set(patch).where(eq(projectsTable.slug, u.slug));
     }
+    const goneJ = await deletedSlugs("project");
     for (const p of [...NEW_PROJECTS, ...MORE_PROJECTS]) {
+      if (goneJ.has(p.slug)) continue;
       await db.insert(projectsTable).values(p).onConflictDoNothing({ target: projectsTable.slug });
     }
     // Real stories. Skip a project once its description has been rewritten (stories have paragraph breaks).

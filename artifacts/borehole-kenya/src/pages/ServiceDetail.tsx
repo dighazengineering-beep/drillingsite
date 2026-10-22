@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetService, useCreateInquiry } from "@workspace/api-client-react";
-import { IMAGES, pickImage, bannerBackground, pageBackdrop } from "@/lib/images";
+import { IMAGES, pickImage, serviceImage, bannerBackground, pageBackdrop } from "@/lib/images";
 import { formatKES, whatsappLink, KENYA_COUNTIES } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -102,7 +102,7 @@ export default function ServiceDetail() {
   return (
     <div style={pageBackdrop(backdrop, "center 50%")}>
       {/* Header */}
-      <div className="relative overflow-hidden text-white pt-[76px] pb-6" style={{ background: bannerBackground(pickImage(service.name, service.category)) }}>
+      <div className="relative overflow-hidden text-white pt-[76px] pb-6" style={{ background: bannerBackground(serviceImage(service)) }}>
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link href="/services" className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm mb-3 transition-colors">
             <ArrowLeft className="h-4 w-4" /> All Services

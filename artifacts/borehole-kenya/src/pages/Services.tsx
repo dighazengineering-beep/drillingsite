@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListServices } from "@workspace/api-client-react";
 import { formatKES } from "@/lib/utils";
-import { IMAGES, pickImage, pageBackdrop } from "@/lib/images";
+import { IMAGES, pickImage, serviceImage, pageBackdrop } from "@/lib/images";
 import BlendedPhoto from "@/components/BlendedPhoto";
 import { LiveTitle } from "@/components/LiveTitle";
 
@@ -33,7 +33,7 @@ export default function Services() {
               ))
             : (services ?? []).map((service) => (
                 <Card key={service.id} className="h-full group hover:shadow-md transition-all border-border overflow-hidden flex flex-col" data-testid={`card-service-${service.id}`}>
-                  <BlendedPhoto src={pickImage(service.name, service.category)} alt={service.name} className="aspect-[4/3]" />
+                  <BlendedPhoto src={serviceImage(service)} alt={service.name} className="aspect-[4/3]" />
                   <CardContent className="p-3.5 flex flex-col flex-1">
                     <h2 className="text-sm font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
                       <LiveTitle level="sub" text={service.name} hi="#0ea5e9" />

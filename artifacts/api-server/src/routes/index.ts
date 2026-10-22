@@ -9,6 +9,7 @@ import projectsRouter from "./projects";
 import videoCommentsRouter from "./videoComments";
 import videoStatsRouter from "./videoStats";
 import feedVideosRouter from "./feedVideos";
+import adminExtraRouter from "./adminExtra";
 import adminCatalogRouter from "./adminCatalog";
 import membersRouter from "./members";
 import paymentsRouter from "./payments";
@@ -27,6 +28,7 @@ router.use(videoStatsRouter);
 router.use(feedVideosRouter);
 router.use(membersRouter);
 router.use(paymentsRouter);
+router.use(adminExtraRouter);
 router.use(adminCatalogRouter);
 
 export default router;

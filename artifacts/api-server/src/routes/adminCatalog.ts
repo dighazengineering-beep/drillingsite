@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, productsTable, servicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { markDeleted } from "../lib/tombstones";
 
 // Admin editing of products and services (prices, details, stock). All routes need the ADMIN_KEY header.
 const router = Router();
@@ -63,7 +64,6 @@ router.get("/admin/products", async (_req, res) => {
 router.patch("/admin/products/:id", async (req, res) => {
   try {
     const patch = productPatch(req.body ?? {}, false);
-    delete patch.name; // photos are matched by product name, so renaming is not allowed here
     if (Object.keys(patch).length === 0) { res.status(400).json({ error: "Nothing to change" }); return; }
     const [row] = await db.update(productsTable).set(patch).where(eq(productsTable.id, Number(req.params.id) || 0)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -81,6 +81,8 @@ router.post("/admin/products", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "Invalid input" }); }
 });
 router.delete("/admin/products/:id", async (req, res) => {
+  const [gone] = await db.select({ slug: productsTable.slug }).from(productsTable).where(eq(productsTable.id, Number(req.params.id) || 0));
+  if (gone) await markDeleted("product", gone.slug);
   await db.delete(productsTable).where(eq(productsTable.id, Number(req.params.id) || 0));
   res.json({ ok: true });
 });
@@ -127,6 +129,8 @@ router.post("/admin/services", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : "Invalid input" }); }
 });
 router.delete("/admin/services/:id", async (req, res) => {
+  const [gone] = await db.select({ slug: servicesTable.slug }).from(servicesTable).where(eq(servicesTable.id, Number(req.params.id) || 0));
+  if (gone) await markDeleted("service", gone.slug);
   await db.delete(servicesTable).where(eq(servicesTable.id, Number(req.params.id) || 0));
   res.json({ ok: true });
 });
