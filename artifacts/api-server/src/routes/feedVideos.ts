@@ -184,6 +184,19 @@ router.post("/feed-videos", async (req, res) => {
   } catch { res.status(500).json({ error: "Could not save video" }); }
 });
 
+router.patch("/feed-videos/:id", async (req, res) => {
+  if (!isAdmin(req.header("x-admin-key"))) { res.status(403).json({ error: "Admin only." }); return; }
+  try {
+    await ensureTable();
+    const b = req.body ?? {};
+    const r = await pool.query(
+      "UPDATE feed_videos SET category = COALESCE($2, category), title = COALESCE($3, title) WHERE id=$1 RETURNING " + COLS,
+      [Number(req.params.id) || 0, typeof b.category === "string" && CATS.includes(b.category) ? b.category : null, text(b.title, 120)]);
+    if (!r.rows[0]) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(r.rows[0]);
+  } catch { res.status(500).json({ error: "Could not update" }); }
+});
+
 router.delete("/feed-videos/:id", async (req, res) => {
   const who = await actor(req);
   if (!who) { res.status(403).json({ error: NOT_ALLOWED }); return; }

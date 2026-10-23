@@ -9,9 +9,10 @@ import EnquiriesAdmin from "@/components/admin/EnquiriesAdmin";
 import PaymentsAdmin from "@/components/admin/PaymentsAdmin";
 import UploadersAdmin from "@/components/admin/UploadersAdmin";
 import { API, api, store, UploadSheet, type FeedVideo } from "@/pages/Feed";
+import { VIDEO_CATS, catOf } from "@/lib/videoCats";
 import { claimAdmin } from "@/lib/member";
 
-interface UpVideo { id: number; title: string; location?: string; source?: string; url: string; createdAt?: string }
+interface UpVideo { id: number; title: string; location?: string; source?: string; url: string; category?: string; createdAt?: string }
 interface AdminComment { id: number; videoId: string; name: string; body: string; createdAt: string }
 
 const card = "rounded-2xl bg-card/95 p-4 shadow-xl backdrop-blur sm:p-5";
@@ -46,6 +47,7 @@ export default function Admin() {
   const [videos, setVideos] = useState<UpVideo[] | null>(null);
   const [comments, setComments] = useState<AdminComment[] | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  const [vcat, setVcat] = useState<string>("all");
   const [titles, setTitles] = useState<Record<string, string>>({});
 
   const logout = () => { store.set("kws_admin", ""); setKey(""); };
@@ -81,6 +83,10 @@ export default function Admin() {
     if (!window.confirm(`Delete "${v.title}"?`)) return;
     const r = await fetch(`${API}/api/feed-videos/${v.id}`, { method: "DELETE", headers: { "x-admin-key": key } });
     if (r.ok) setVideos((l) => (l ?? []).filter((x) => x.id !== v.id));
+  };
+  const setVideoCat = async (v: UpVideo, category: string) => {
+    const r = await fetch(`${API}/api/feed-videos/${v.id}`, { method: "PATCH", headers: { "x-admin-key": key, "content-type": "application/json" }, body: JSON.stringify({ category }) });
+    if (r.ok) setVideos((l) => (l ?? []).map((x) => (x.id === v.id ? { ...x, category } : x)));
   };
   const delComment = async (c: AdminComment) => {
     if (!window.confirm("Delete this comment?")) return;
@@ -187,13 +193,28 @@ export default function Admin() {
                 <div>
                   {videos === null && <p className="text-sm text-muted-foreground">Loading…</p>}
                   {videos?.length === 0 && <p className="text-sm text-muted-foreground">None yet. Tap “Upload video” to post one.</p>}
+                  {!!videos?.length && (
+                    <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                      {[{ id: "all", label: "All" }, ...VIDEO_CATS].map((c) => {
+                        const n = c.id === "all" ? videos.length : videos.filter((x) => catOf(x.category) === c.id).length;
+                        return (
+                          <button key={c.id} onClick={() => setVcat(c.id)} aria-pressed={vcat === c.id}
+                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${vcat === c.id ? "bg-primary text-primary-foreground" : "bg-muted text-foreground/70"}`}>{c.label} · {n}</button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="divide-y divide-border">
-                    {videos?.map((v) => (
+                    {videos?.filter((v) => vcat === "all" || catOf(v.category) === vcat).map((v) => (
                       <div key={v.id} className="flex items-center justify-between gap-3 py-2.5">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-foreground">{titles[`db-${v.id}`] ?? v.title}</p>
-                          <p className="text-xs text-muted-foreground">{v.source === "github" ? "Stored on GitHub" : "Stored on Cloudinary"}{v.createdAt ? ` · ${new Date(v.createdAt + "Z").toLocaleDateString()}` : ""}</p>
+                          <p className="text-xs text-muted-foreground">{v.source === "github" ? "GitHub" : "Cloudinary"}{v.createdAt ? ` · ${new Date(v.createdAt).toLocaleDateString()}` : ""}</p>
                         </div>
+                        <select value={catOf(v.category)} onChange={(e) => setVideoCat(v, e.target.value)} aria-label="Category"
+                          className="max-w-[9.5rem] shrink-0 rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold">
+                          {VIDEO_CATS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                        </select>
                         <button onClick={() => delVideo(v)} aria-label="Delete video" className="shrink-0 rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     ))}
