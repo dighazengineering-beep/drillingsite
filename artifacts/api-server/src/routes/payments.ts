@@ -32,6 +32,22 @@ function ensureTables() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_img TEXT;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS quote TEXT NOT NULL DEFAULT '';
+      -- The price agreed with a client for one job (phone + item). Only the admin sets or changes it.
+      CREATE TABLE IF NOT EXISTS deals (
+        id SERIAL PRIMARY KEY,
+        phone TEXT NOT NULL,
+        client_name TEXT NOT NULL DEFAULT '',
+        item TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'service',
+        rate NUMERIC,
+        metres NUMERIC,
+        total NUMERIC NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS deals_job_idx ON deals (phone, item);
       CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         phone TEXT NOT NULL,
@@ -89,7 +105,7 @@ const isAdmin = (req: Request) => {
   return !!k && typeof h === "string" && h === k;
 };
 
-interface Parsed { phone: string; name: string; email: string; kind: string; item: string; payType: string; amount: number; agreedTotal: number }
+interface Parsed { phone: string; name: string; email: string; kind: string; item: string; payType: string; amount: number; quote: string }
 function parseBody(b: Record<string, unknown>): Parsed | string {
   const phone = normPhone(b.phone);
   const name = str(b.name, 80);
@@ -97,30 +113,39 @@ function parseBody(b: Record<string, unknown>): Parsed | string {
   const payType = ["deposit", "balance", "full"].includes(String(b.payType)) ? String(b.payType) : "full";
   const kind = b.kind === "product" ? "product" : "service";
   const amount = num(b.amount);
-  const agreedTotal = num(b.agreedTotal);
   if (name.length < 2) return "Enter your name.";
   if (!phone) return "Enter a valid Safaricom phone number, like 0712 345 678.";
   if (!item) return "Choose what you are paying for.";
-  if (!Number.isFinite(agreedTotal) || agreedTotal < 1 || agreedTotal > 50_000_000) return "Enter the agreed price.";
-  if (!Number.isFinite(amount) || amount < 1) return "Enter the amount to pay.";
-  if (amount > agreedTotal) return "The amount cannot be more than the agreed price.";
-  return { phone, name, email: str(b.email, 120), kind, item, payType, amount, agreedTotal };
-}
-
-/** What the client has paid so far on this job and what is left. */
-async function jobBalance(phone: string, item: string) {
-  const r = await pool.query(
-    `SELECT agreed_total, status, amount FROM payments WHERE phone=$1 AND item=$2 ORDER BY created_at DESC, id DESC`,
-    [phone, item],
-  );
-  if (!r.rows.length) return { found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 };
-  const agreedTotal = Number(r.rows[0].agreed_total);
-  const paid = r.rows.filter((x) => x.status === "paid").reduce((a, x) => a + Number(x.amount), 0);
-  const pending = r.rows.filter((x) => x.status === "pending").reduce((a, x) => a + Number(x.amount), 0);
-  return { found: true, agreedTotal, paid, pending, balance: Math.max(0, agreedTotal - paid) };
+  if (!Number.isFinite(amount) || amount < 1 || amount > 50_000_000) return "Enter the amount to pay.";
+  // "quote" is only the client's own estimate (casing, depth...), kept so the admin can see it when setting the real price
+  return { phone, name, email: str(b.email, 120), kind, item, payType, amount, quote: str(b.quote, 240) };
 }
 
 const kes = (n: number) => `KSh ${Math.round(n).toLocaleString("en-KE")}`;
+
+/** What the client has paid on a job and what is left. The agreed price is the one the admin set (a "deal"); without one the job is unpriced. */
+async function jobBalance(phone: string, item: string) {
+  const d = (await pool.query("SELECT total, rate, metres FROM deals WHERE phone=$1 AND item=$2", [phone, item])).rows[0];
+  const r = await pool.query("SELECT status, amount FROM payments WHERE phone=$1 AND item=$2", [phone, item]);
+  const paid = r.rows.filter((x) => x.status === "paid").reduce((a, x) => a + Number(x.amount), 0);
+  const pending = r.rows.filter((x) => x.status === "pending").reduce((a, x) => a + Number(x.amount), 0);
+  if (!d) return { found: r.rows.length > 0, priced: false, agreedTotal: 0, rate: null as number | null, metres: null as number | null, paid, pending, balance: 0, overpaid: 0 };
+  const total = Number(d.total);
+  return {
+    found: true, priced: true, agreedTotal: total, rate: d.rate == null ? null : Number(d.rate), metres: d.metres == null ? null : Number(d.metres),
+    paid, pending, balance: Math.max(0, total - paid), overpaid: Math.max(0, paid - total),
+  };
+}
+
+/** Checks the amount against the admin's price. Without an agreed price only a deposit can be taken. */
+async function priceCheck(p: Parsed): Promise<string | { agreedTotal: number; payType: string }> {
+  const b = await jobBalance(p.phone, p.item);
+  if (!b.priced) return { agreedTotal: 0, payType: "deposit" };
+  if (b.balance <= 0) return "This job is already fully paid. Thank you.";
+  if (p.amount > b.balance) return `The most you can pay now is ${kes(b.balance)}.`;
+  return { agreedTotal: b.agreedTotal, payType: p.payType };
+}
+
 async function notify(phone: string, title: string, body: string, link = "") {
   await pool.query("INSERT INTO notifications (phone,title,body,link) VALUES ($1,$2,$3,$4)", [phone, title, body, link]).catch(() => {});
 }
@@ -130,6 +155,10 @@ async function notifyPaid(id: number) {
   if (!r.rows[0]) return;
   const { phone, item, amount } = r.rows[0];
   const b = await jobBalance(phone, item);
+  if (!b.priced) {
+    await notify(phone, "Deposit received", `We received ${kes(Number(amount))} for ${item}. We will confirm your price and balance with you.`, "/feed");
+    return;
+  }
   await notify(
     phone,
     b.balance > 0 ? "Payment received" : "Payment complete",
@@ -155,14 +184,18 @@ router.get("/payments/config", (_req, res) => {
   res.json({ mpesa: mpesaReady(), banks: bankAccounts() });
 });
 
+const NO_JOB = { found: false, priced: false, agreedTotal: 0, rate: null, metres: null, paid: null, pending: 0, balance: 0, overpaid: 0 };
 router.get("/payments/balance", async (req, res) => {
   try {
     await ensureTables();
     const phone = normPhone(req.query.phone);
     const item = str(req.query.item, 140);
-    if (!phone || !item || !keyOk(phone, req.query.key)) { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); return; }
-    res.json(await jobBalance(phone, item));
-  } catch { res.json({ found: false, agreedTotal: 0, paid: 0, pending: 0, balance: 0 }); }
+    if (!phone || !item || limited(`bal:${req.ip ?? "x"}`, 80)) { res.json(NO_JOB); return; }
+    const b = await jobBalance(phone, item);
+    const mine = keyOk(phone, req.query.key); // only the payer's own device sees the payment history
+    if (!b.priced && !mine) { res.json(NO_JOB); return; }
+    res.json({ ...b, paid: mine ? b.paid : null, pending: mine ? b.pending : 0, overpaid: mine ? b.overpaid : 0 });
+  } catch { res.json(NO_JOB); }
 });
 
 router.get("/payments/notifications", async (req, res) => {
@@ -252,11 +285,14 @@ router.post("/payments/mpesa", async (req: Request, res: Response) => {
     if (!mpesaReady()) { res.status(503).json({ error: "M-Pesa is not switched on yet. Please use bank transfer or call us." }); return; }
     const p = parseBody(req.body ?? {});
     if (typeof p === "string") { res.status(400).json({ error: p }); return; }
+    const price = await priceCheck(p);
+    if (typeof price === "string") { res.status(400).json({ error: price }); return; }
+    // only prompts that would really be sent count toward the limit, so a typing mistake never locks a client out
     if (limited(`ip:${req.ip ?? "x"}`, 20) || limited(`phone:${p.phone}`, 4)) { res.status(429).json({ error: SLOW_DOWN }); return; }
     const tokenP = mpesaToken().catch((e) => e as Error);
     const ins = await pool.query(
-      `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mpesa','pending') RETURNING id`,
-      [p.phone, p.name, p.email, p.kind, p.item, p.payType, p.amount, p.agreedTotal],
+      `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status,quote) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mpesa','pending',$9) RETURNING id`,
+      [p.phone, p.name, p.email, p.kind, p.item, price.payType, p.amount, price.agreedTotal, p.quote],
     );
     const id = ins.rows[0].id as number;
     const ts = stamp();
@@ -333,13 +369,15 @@ router.post("/payments/bank", async (req: Request, res: Response) => {
     await ensureTables();
     const p = parseBody(req.body ?? {});
     if (typeof p === "string") { res.status(400).json({ error: p }); return; }
-    if (limited(`bank-ip:${req.ip ?? "x"}`, 20) || limited(`bank-phone:${p.phone}`, 6)) { res.status(429).json({ error: SLOW_DOWN }); return; }
     const bankRef = str(req.body?.bankRef, 600);
     const img = typeof req.body?.receiptImg === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(req.body.receiptImg) && req.body.receiptImg.length < 1_000_000 ? req.body.receiptImg : null;
     if (bankRef.length < 3 && !img) { res.status(400).json({ error: "Upload your payment receipt, or paste the bank message." }); return; }
+    const price = await priceCheck(p);
+    if (typeof price === "string") { res.status(400).json({ error: price }); return; }
+    if (limited(`bank-ip:${req.ip ?? "x"}`, 20) || limited(`bank-phone:${p.phone}`, 6)) { res.status(429).json({ error: SLOW_DOWN }); return; }
     const ins = await pool.query(
-      `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status,bank_ref,receipt_img) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'bank','pending',$9,$10) RETURNING id`,
-      [p.phone, p.name, p.email, p.kind, p.item, p.payType, p.amount, p.agreedTotal, bankRef, img],
+      `INSERT INTO payments (phone,name,email,kind,item,pay_type,amount,agreed_total,method,status,bank_ref,receipt_img,quote) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'bank','pending',$9,$10,$11) RETURNING id`,
+      [p.phone, p.name, p.email, p.kind, p.item, price.payType, p.amount, price.agreedTotal, bankRef, img, p.quote],
     );
     await notify(p.phone, "Receipt received", `We received your ${kes(p.amount)} bank payment proof for ${p.item}. We are confirming it now.`);
     res.json({ id: ins.rows[0].id, status: "pending", key: baseSecret() ? viewKey(p.phone) : undefined });
@@ -354,14 +392,96 @@ router.get("/payments-admin/list", async (req, res) => {
     const stale = await pool.query("SELECT id FROM payments WHERE method='mpesa' AND status='pending' AND checkout_id IS NOT NULL AND created_at < NOW() - INTERVAL '1 minute' ORDER BY id DESC LIMIT 8");
     await Promise.allSettled(stale.rows.map((x) => reconcile(x.id)));
     const r = await pool.query(
-      `SELECT id, phone, name, email, kind, item, pay_type AS "payType", amount, agreed_total AS "agreedTotal", method, status, receipt, bank_ref AS "bankRef", (receipt_img IS NOT NULL) AS "hasImg", note, created_at AS "createdAt" FROM payments ORDER BY created_at DESC LIMIT 300`,
+      `SELECT id, phone, name, email, kind, item, pay_type AS "payType", amount, agreed_total AS "agreedTotal", method, status, receipt, bank_ref AS "bankRef", (receipt_img IS NOT NULL) AS "hasImg", note, quote, created_at AS "createdAt" FROM payments ORDER BY created_at DESC LIMIT 300`,
     );
-    const rows = r.rows.map((x) => ({ ...x, amount: Number(x.amount), agreedTotal: Number(x.agreedTotal) }));
+    const dl = await pool.query("SELECT phone, item, total FROM deals");
+    const priceOf = new Map<string, number>(dl.rows.map((d) => [`${d.phone}|${d.item}`, Number(d.total)]));
+    const rows = r.rows.map((x) => ({ ...x, amount: Number(x.amount), agreedTotal: priceOf.get(`${x.phone}|${x.item}`) ?? 0, priced: priceOf.has(`${x.phone}|${x.item}`) }));
     // running balance per job (phone + item)
     const paid = new Map<string, number>();
     for (const x of rows) if (x.status === "paid") paid.set(`${x.phone}|${x.item}`, (paid.get(`${x.phone}|${x.item}`) ?? 0) + x.amount);
     res.json(rows.map((x) => ({ ...x, paidSoFar: paid.get(`${x.phone}|${x.item}`) ?? 0 })));
   } catch { res.status(500).json({ error: "Could not load payments." }); }
+});
+
+/* -------- agreed prices ("deals"): only the admin sets or changes a job's price */
+router.get("/payments-admin/deals", async (req, res) => {
+  if (!isAdmin(req)) { res.status(403).json({ error: "Admin only" }); return; }
+  try {
+    await ensureTables();
+    const d = await pool.query(
+      `SELECT d.id, d.phone, d.client_name AS name, d.item, d.kind, d.rate, d.metres, d.total, d.note, d.updated_at AS "updatedAt",
+         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.phone=d.phone AND p.item=d.item AND p.status='paid'), 0) AS paid
+       FROM deals d ORDER BY d.updated_at DESC LIMIT 300`,
+    );
+    const deals = d.rows.map((x) => {
+      const total = Number(x.total), paid = Number(x.paid);
+      return { id: x.id, phone: x.phone, name: x.name, item: x.item, kind: x.kind, rate: x.rate == null ? null : Number(x.rate), metres: x.metres == null ? null : Number(x.metres), total, paid, balance: Math.max(0, total - paid), overpaid: Math.max(0, paid - total), note: x.note, updatedAt: x.updatedAt };
+    });
+    // jobs where clients have paid but no price is set yet
+    const u = await pool.query(
+      `SELECT p.phone, p.item, p.kind, (ARRAY_AGG(p.name ORDER BY p.created_at DESC))[1] AS name,
+         COALESCE(SUM(p.amount) FILTER (WHERE p.status='paid'), 0) AS paid, COALESCE(SUM(p.amount) FILTER (WHERE p.status='pending'), 0) AS pending,
+         (ARRAY_AGG(p.quote ORDER BY p.created_at DESC) FILTER (WHERE p.quote <> ''))[1] AS quote, MAX(p.created_at) AS "lastAt"
+       FROM payments p
+       WHERE p.status IN ('paid','pending') AND NOT EXISTS (SELECT 1 FROM deals d WHERE d.phone=p.phone AND d.item=p.item)
+       GROUP BY p.phone, p.item, p.kind ORDER BY MAX(p.created_at) DESC LIMIT 100`,
+    );
+    res.json({ deals, unpriced: u.rows.map((x) => ({ ...x, paid: Number(x.paid), pending: Number(x.pending) })) });
+  } catch { res.status(500).json({ error: "Could not load prices." }); }
+});
+
+router.post("/payments-admin/deals", async (req, res) => {
+  if (!isAdmin(req)) { res.status(403).json({ error: "Admin only" }); return; }
+  try {
+    await ensureTables();
+    const b = req.body ?? {};
+    const phone = normPhone(b.phone);
+    const item = str(b.item, 140);
+    const kind = b.kind === "product" ? "product" : "service";
+    if (!phone) { res.status(400).json({ error: "Enter the client's phone number, like 0712 345 678." }); return; }
+    if (!item) { res.status(400).json({ error: "Choose or type what the job is for." }); return; }
+    const rate = b.rate === "" || b.rate == null ? null : num(b.rate);
+    const metresRaw = b.metres === "" || b.metres == null ? null : Math.round(Number(b.metres) * 10) / 10;
+    let total: number;
+    if (rate && metresRaw) {
+      if (!(rate > 0 && rate <= 1_000_000) || !(metresRaw > 0 && metresRaw <= 5000)) { res.status(400).json({ error: "Check the price per metre and the metres." }); return; }
+      total = Math.round(rate * metresRaw); // per-metre jobs: price = rate x metres
+    } else total = num(b.total);
+    if (!Number.isFinite(total) || total < 1 || total > 50_000_000) { res.status(400).json({ error: "Enter the agreed price." }); return; }
+    const useRate = rate && metresRaw ? rate : null;
+    const useMetres = rate && metresRaw ? metresRaw : null;
+    const before = (await pool.query("SELECT total FROM deals WHERE phone=$1 AND item=$2", [phone, item])).rows[0];
+    const nameIn = str(b.name, 80) || ((await pool.query("SELECT name FROM payments WHERE phone=$1 ORDER BY created_at DESC LIMIT 1", [phone])).rows[0]?.name ?? "");
+    await pool.query(
+      `INSERT INTO deals (phone, client_name, item, kind, rate, metres, total, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (phone, item) DO UPDATE SET client_name = COALESCE(NULLIF(EXCLUDED.client_name, ''), deals.client_name), kind=EXCLUDED.kind,
+         rate=EXCLUDED.rate, metres=EXCLUDED.metres, total=EXCLUDED.total, note=EXCLUDED.note, updated_at=NOW()`,
+      [phone, nameIn, item, kind, useRate, useMetres, total, str(b.note, 300)],
+    );
+    // tell the client, in the bell, what their price is and what is left
+    if (!before || Number(before.total) !== total) {
+      const j = await jobBalance(phone, item);
+      const left = j.balance > 0 ? `Balance remaining: ${kes(j.balance)}.` : j.overpaid > 0 ? `You have paid ${kes(j.overpaid)} more than this total, we will contact you.` : "It is fully paid.";
+      const paidPart = j.paid > 0 ? ` Paid so far: ${kes(j.paid)}.` : "";
+      await notify(
+        phone,
+        before ? "Your total was updated" : "Your agreed price is set",
+        before ? `Your total for ${item} is now ${kes(total)} (it was ${kes(Number(before.total))}).${paidPart} ${left}` : `We recorded your agreed price for ${item}: ${kes(total)}.${paidPart} ${left} You can pay from the Pay button.`,
+        "/feed",
+      );
+    }
+    res.status(before ? 200 : 201).json({ ok: true, total });
+  } catch { res.status(500).json({ error: "Could not save the price." }); }
+});
+
+router.delete("/payments-admin/deals/:id", async (req, res) => {
+  if (!isAdmin(req)) { res.status(403).json({ error: "Admin only" }); return; }
+  try {
+    await ensureTables();
+    await pool.query("DELETE FROM deals WHERE id=$1", [Number(req.params.id) || 0]);
+    res.json({ ok: true });
+  } catch { res.status(500).json({ error: "Could not remove." }); }
 });
 
 router.get("/payments-admin/:id/receipt", async (req, res) => {

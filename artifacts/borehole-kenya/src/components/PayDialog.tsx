@@ -7,7 +7,7 @@ import { API, memberApi, memberToken, kes } from "@/lib/member";
 type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
 interface Item { name: string; price: number | null; unit?: string }
-interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
+interface Bal { found: boolean; priced?: boolean; agreedTotal: number; rate?: number | null; metres?: number | null; paid: number | null; pending: number; balance: number; overpaid?: number }
 interface Bank { bankName: string; accountName: string; accountNumber: string; paybill?: string }
 interface Cfg { mpesa: boolean; banks: Bank[] }
 
@@ -91,7 +91,8 @@ export default function PayDialog() {
     else if (item) setTotal("");
   }, [item, kind, chosen?.price, perMetre]);
   const pickCasing = (c: "pvc" | "steel") => { setCasing(c); setRate(c === "steel" ? String(STEEL_RATE) : chosen?.price ? String(Math.round(chosen.price)) : ""); };
-  const existing = !!(bal?.found && bal.paid > 0); // a job already being paid keeps its agreed price
+  const priced = !!bal?.priced; // Dighaz has recorded the agreed price for this job: the client cannot change it
+  const existing = priced;
   useEffect(() => { if (perMetre && !existing) setTotal(money(rate) && money(depth) ? String(money(rate) * money(depth)) : ""); }, [rate, depth, perMetre, existing]);
   useEffect(() => { setItem((v) => (items[kind].some((i) => i.name === v) ? v : "")); }, [kind, items]);
 
@@ -104,26 +105,29 @@ export default function PayDialog() {
       fetch(`${API}/api/payments/balance?phone=${encodeURIComponent(phone)}&item=${encodeURIComponent(item)}&key=${encodeURIComponent(keyFor(phone))}`)
         .then((r) => r.json()).then((b: Bal) => {
           setBal(b);
-          if (b.found && b.paid > 0) { setTotal(String(b.agreedTotal)); setPayType(b.balance > 0 ? "balance" : "full"); setAmountTouched(false); }
+          if (b.priced) { setTotal(String(b.agreedTotal)); setPayType(b.balance <= 0 ? "full" : b.balance < b.agreedTotal ? "balance" : "deposit"); setAmountTouched(false); }
         }).catch(() => {});
     }, 450);
     return () => window.clearTimeout(t);
   }, [phone, item, phoneOk, open]);
 
-  const T = money(total);
-  const paid = bal?.found ? bal.paid : 0;
-  const left = Math.max(0, T - paid);
+  // With an agreed price, the total and what is left come from Dighaz. Without one, the total is only the client's estimate.
+  const T = priced ? bal!.agreedTotal : money(total);
+  const left = priced ? bal!.balance : T;
+  const paid = priced ? Math.max(0, T - left) : 0;
   const suggested = useMemo(() => {
     if (!T) return 0;
-    if (payType === "deposit") return Math.round((T * DEPOSIT_PCT) / 100);
-    if (payType === "balance") return left;
-    return T - paid;
-  }, [T, payType, left, paid]);
+    if (payType === "deposit") return priced ? Math.min(left, Math.round((T * DEPOSIT_PCT) / 100)) : Math.round((T * DEPOSIT_PCT) / 100);
+    return left;
+  }, [T, payType, left, priced]);
   useEffect(() => { if (!amountTouched) setAmount(suggested ? String(suggested) : ""); }, [suggested, amountTouched]);
   useEffect(() => { setAmountTouched(false); }, [payType, item]);
 
   const A = money(amount);
-  const done = bal?.found && bal.balance <= 0 && bal.paid > 0 && T <= bal.paid;
+  const done = priced && bal!.balance <= 0;
+  const quoteText = priced ? "" : perMetre && money(rate) && money(depth)
+    ? `${casing === "steel" ? "Steel" : "PVC"} casing, ${money(depth)} m at KSh ${money(rate).toLocaleString("en-KE")} per metre = KSh ${T.toLocaleString("en-KE")}`
+    : T ? `Estimated price KSh ${T.toLocaleString("en-KE")}` : "";
 
   const reset = () => { window.clearInterval(poll.current); setPhase("form"); setErr(""); setBankRef(""); setImg(""); setReceipt(""); setBusy(false); };
   const close = (v: boolean) => { setOpen(v); if (!v) reset(); };
@@ -131,15 +135,14 @@ export default function PayDialog() {
   const submit = async () => {
     setErr("");
     if (!item) return setErr("Choose what you are paying for.");
-    if (perMetre && !existing && !money(depth)) return setErr("Enter the agreed depth in metres.");
-    if (!T) return setErr("Enter the agreed price.");
     if (!A) return setErr("Enter the amount to pay.");
-    if (A > T) return setErr("The amount cannot be more than the agreed price.");
+    if (priced && A > left) return setErr(`The most you can pay now is ${kes(left)}.`);
     if (name.trim().length < 2) return setErr("Enter your name.");
     if (!phoneOk) return setErr("Enter your phone number.");
     if (method === "bank" && bankRef.trim().length < 3 && !img) return setErr("Upload your payment receipt, or paste the bank message.");
     setBusy(true);
-    const body = { name, phone, kind, item, payType, amount: A, agreedTotal: T, bankRef, receiptImg: img || undefined };
+    // the price is never sent: Dighaz holds the agreed price. Without one, only a deposit is taken and the estimate is passed on for us to see.
+    const body = { name, phone, kind, item, payType: priced ? payType : "deposit", amount: A, quote: quoteText, bankRef, receiptImg: img || undefined };
     try {
       const r = await fetch(`${API}/api/payments/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -217,11 +220,13 @@ export default function PayDialog() {
                   </select>
                 </div>
 
+                {priced && !done && (
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
                   {([["deposit", "Deposit"], ["balance", "Balance"], ["full", "Full"]] as const).map(([k, n]) => (
                     <button key={k} type="button" onClick={() => setPayType(k)} className={`rounded-lg py-1.5 text-xs font-bold transition ${payType === k ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground"}`}>{n}</button>
                   ))}
                 </div>
+                )}
 
                 {perMetre && !existing && (
                   <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
@@ -237,30 +242,42 @@ export default function PayDialog() {
                       <input inputMode="numeric" value={fmt(money(rate))} onChange={(e) => setRate(digits(e.target.value))} placeholder="0" className={inp} data-testid="pay-rate" />
                     </div>
                     <div>
-                      <label className={lab}>Agreed depth (metres)</label>
+                      <label className={lab}>Depth you expect (metres)</label>
                       <input inputMode="numeric" value={depth} onChange={(e) => setDepth(digits(e.target.value))} placeholder="e.g. 150" className={inp} data-testid="pay-depth" />
                     </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={lab}>{perMetre && !existing ? "Total price (KSh)" : "Agreed price (KSh)"}</label>
-                    <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => setTotal(digits(e.target.value))} readOnly={perMetre && !existing} placeholder="0" className={`${inp} ${perMetre && !existing ? "bg-muted/60" : ""}`} data-testid="pay-total" />
+                {priced && (
+                  <div className="rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5 text-xs" data-testid="pay-agreed">
+                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Agreed price</span><b className="text-sm text-foreground">{kes(bal!.agreedTotal)}</b></div>
+                    {bal!.rate && bal!.metres ? <p className="mt-0.5 text-[11px] text-muted-foreground">{kes(bal!.rate)} per metre × {bal!.metres} metres</p> : null}
+                    <div className="mt-1.5 flex items-center justify-between border-t border-primary/15 pt-1.5">
+                      <span className="text-muted-foreground">Paid so far <b className="text-foreground">{kes(paid)}</b></span>
+                      <span className="font-bold text-primary">{bal!.balance > 0 ? `Left to pay ${kes(bal!.balance)}` : "Fully paid"}</span>
+                    </div>
                   </div>
+                )}
+                {!priced && item && (
+                  <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900" data-testid="pay-unpriced">
+                    Your final price is confirmed by Dighaz Engineering once we agree it with you. You can pay a deposit now and we will confirm your balance.
+                  </p>
+                )}
+
+                <div className={`grid gap-2 ${priced ? "grid-cols-1" : "grid-cols-2"}`}>
+                  {!priced && (
+                    <div>
+                      <label className={lab}>{perMetre ? "Estimated total (KSh)" : "Estimated price (KSh)"}</label>
+                      <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => setTotal(digits(e.target.value))} readOnly={perMetre} placeholder="0" className={`${inp} ${perMetre ? "bg-muted/60" : ""}`} data-testid="pay-total" />
+                    </div>
+                  )}
                   <div>
                     <label className={lab}>Pay now (KSh)</label>
                     <input inputMode="numeric" value={fmt(A)} onChange={(e) => { setAmountTouched(true); setAmount(digits(e.target.value)); }} placeholder="0" className={`${inp} font-bold text-primary`} data-testid="pay-amount" />
                   </div>
                 </div>
-
-                {bal?.found && bal.paid > 0 && (
-                  <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/5 px-3 py-2 text-xs">
-                    <span className="text-muted-foreground">Paid <b className="text-foreground">{kes(bal.paid)}</b></span>
-                    <span className="font-bold text-primary">{bal.balance > 0 ? `Balance ${kes(bal.balance)}` : "Fully paid"}</span>
-                  </div>
-                )}
-                {payType === "deposit" && T > 0 && <p className="-mt-1 text-[11px] text-muted-foreground">Deposit is {DEPOSIT_PCT}% of the price and counts toward the total. You can change the amount.</p>}
+                {!priced && T > 0 && <p className="-mt-1 text-[11px] text-muted-foreground">The suggested deposit is {DEPOSIT_PCT}% of your estimate. You can change the amount.</p>}
+                {priced && payType === "deposit" && T > 0 && <p className="-mt-1 text-[11px] text-muted-foreground">A deposit counts toward the agreed price. You can change the amount.</p>}
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -334,7 +351,8 @@ export default function PayDialog() {
                 <CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" />
                 <p className="mt-3 text-lg font-extrabold text-foreground">Payment received</p>
                 <p className="mt-1 text-sm text-muted-foreground">{kes(A)} for {item}.{receipt ? ` M-Pesa code ${receipt}.` : ""}</p>
-                {T - paid - A > 0 && <p className="mt-2 text-sm font-semibold text-primary">Balance left: {kes(T - paid - A)}</p>}
+                {priced ? (left - A > 0 ? <p className="mt-2 text-sm font-semibold text-primary">Balance left: {kes(left - A)}</p> : <p className="mt-2 text-sm font-semibold text-emerald-700">Fully paid. Thank you!</p>)
+                  : <p className="mt-2 text-sm font-semibold text-primary">We will confirm your price and balance with you.</p>}
                 <button onClick={() => close(false)} className="mt-5 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground">Done</button>
               </div>
             )}
