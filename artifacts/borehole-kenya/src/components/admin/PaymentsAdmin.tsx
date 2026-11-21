@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, XCircle, Landmark, Smartphone, FileSpreadsheet, Banknote, ReceiptText } from "lucide-react";
 import { API, kes } from "@/lib/member";
 import RecordPayment from "./RecordPayment";
+import DealsAdmin from "@/components/admin/DealsAdmin";
 
 interface Pay {
   id: number; phone: string; name: string; item: string; payType: string; amount: number; agreedTotal: number; paidSoFar: number;
@@ -64,6 +65,7 @@ export default function PaymentsAdmin({ adminKey, onBadAdmin }: { adminKey: stri
 
   return (
     <div>
+      <DealsAdmin adminKey={adminKey} onBadAdmin={onBadAdmin} />
       <button type="button" onClick={() => setRec((v) => !v)} className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground shadow-sm" data-testid="button-record-payment"><ReceiptText className="h-4 w-4" /> {rec ? "Close" : "Record a cash or other payment"}</button>
       {rec && <RecordPayment adminKey={adminKey} onDone={(id) => { setRec(false); load(); void openReceipt(id); }} />}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

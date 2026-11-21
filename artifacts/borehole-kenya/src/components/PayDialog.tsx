@@ -12,7 +12,7 @@ import { OfflinePayFields, emptyOffline, offlineBody, type OfflineState } from "
 type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
 interface Item { name: string; price: number | null; unit?: string }
-interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
+interface Bal { found: boolean; priced?: boolean; rate?: number | null; metres?: number | null; agreedTotal: number; paid: number; pending: number; balance: number; overpaid?: number }
 interface Bank { bankName: string; accountName: string; accountNumber: string; paybill?: string }
 interface Cfg { mpesa: boolean; banks: Bank[] }
 
@@ -111,7 +111,7 @@ export default function PayDialog() {
     else if (item) setTotal("");
   }, [item, kind, chosen?.price, perMetre]);
   const pickCasing = (c: "pvc" | "steel") => { setCasing(c); setRate(c === "steel" ? String(STEEL_RATE) : chosen?.price ? String(Math.round(chosen.price)) : ""); };
-  const existing = !!(bal?.found && bal.paid > 0); // a job already being paid keeps its agreed price
+  const existing = !!(bal?.found && (bal.paid > 0 || bal.priced)); // a job already being paid keeps its agreed price
   useEffect(() => { if (locked) setTotal(locked); }, [locked]);
   useEffect(() => { if (locked) return; if (perMetre && !existing) setTotal(money(rate) && money(depth) ? String(money(rate) * money(depth)) : ""); }, [rate, depth, perMetre, existing, locked]);
   useEffect(() => { setItem((v) => (!items[kind].length || v === quoted || items[kind].some((i) => i.name === v) ? v : "")); }, [kind, items, quoted]);
@@ -125,7 +125,7 @@ export default function PayDialog() {
       fetch(`${API}/api/payments/balance?phone=${encodeURIComponent(phone)}&item=${encodeURIComponent(item)}&key=${encodeURIComponent(keyFor(phone))}`)
         .then((r) => r.json()).then((b: Bal) => {
           setBal(b);
-          if (b.found && b.paid > 0) { setTotal(String(b.agreedTotal)); setPayType(b.balance > 0 ? "balance" : "full"); setAmountTouched(false); }
+          if (b.found && (b.paid > 0 || b.priced)) { setLocked(null); setTotal(String(b.agreedTotal)); setPayType(b.balance <= 0 ? "full" : b.paid > 0 ? "balance" : "deposit"); setAmountTouched(false); }
         }).catch(() => {});
     }, 450);
     return () => window.clearTimeout(t);
@@ -269,8 +269,8 @@ export default function PayDialog() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={lab}>{perMetre && !existing && !locked ? "Total price (KSh)" : "Agreed price (KSh)"}</label>
-                    <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => { setLocked(null); setTotal(digits(e.target.value)); }} readOnly={perMetre && !existing && !locked} placeholder="0" className={`${inp} ${perMetre && !existing && !locked ? "bg-muted/60" : ""}`} data-testid="pay-total" />
+                    <label className={lab}>{bal?.priced ? "Agreed price (set by Dighaz)" : perMetre && !existing && !locked ? "Total price (KSh)" : "Agreed price (KSh)"}</label>
+                    <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => { setLocked(null); setTotal(digits(e.target.value)); }} readOnly={(perMetre && !existing && !locked) || !!bal?.priced} placeholder="0" className={`${inp} ${perMetre && !existing && !locked ? "bg-muted/60" : ""}`} data-testid="pay-total" />
                   </div>
                   <div>
                     <label className={lab}>Pay now (KSh)</label>
