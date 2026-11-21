@@ -48,6 +48,20 @@ services:
         sync: false
       - key: BANK_ACCOUNT_NUMBER
         sync: false
+      # AI report writer: set Dighaz's own key(s). REPORT_AI picks which one is used (openai or gemini).
+      - key: REPORT_AI
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # Company details printed on receipts, contracts and reports (all optional; sensible defaults are built in).
+      - key: COMPANY_SIGNATORY_NAME
+        sync: false
+      - key: COMPANY_REG_NO
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
       # Signs member log-ins. Render makes a random value for you.
       - key: MEMBER_SECRET
         generateValue: true

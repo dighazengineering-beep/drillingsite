@@ -410,22 +410,25 @@ router.get("/payments/:id/receipt", async (req, res) => {
 });
 
 /* ------------------------------------------------------------- M-Pesa */
-// PayHero sends the M-Pesa prompt and pays into the channel (bank account) linked in the PayHero dashboard.
-// Server settings: PAYHERO_CHANNEL_ID, and either PAYHERO_AUTH (the Basic token, with or without the word "Basic") or PAYHERO_USERNAME + PAYHERO_PASSWORD.
-const PAYHERO = "https://backend.payhero.co.ke/api/v2";
-const payheroAuth = () => {
-  const t = (process.env.PAYHERO_AUTH ?? "").trim();
-  if (t) return /^basic\s/i.test(t) ? t : `Basic ${t}`;
-  const u = process.env.PAYHERO_USERNAME, pw = process.env.PAYHERO_PASSWORD;
-  return u && pw ? `Basic ${Buffer.from(`${u}:${pw}`).toString("base64")}` : "";
-};
-const payheroChannel = () => Number(process.env.PAYHERO_CHANNEL_ID);
-const mpesaReady = () => !!baseSecret() && !!payheroAuth() && Number.isInteger(payheroChannel()) && payheroChannel() > 0;
+const mpesaReady = () => !!baseSecret() && !!(process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET && process.env.MPESA_SHORTCODE && process.env.MPESA_PASSKEY);
+const mpesaBase = () => process.env.MPESA_BASE_URL || (process.env.MPESA_ENV === "live" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke");
 const callbackSecret = () => crypto.createHmac("sha256", baseSecret()).update("mpesa-callback").digest("hex").slice(0, 24);
 
+let tokenCache: { t: string; exp: number } | null = null;
+async function mpesaToken(): Promise<string> {
+  if (tokenCache && tokenCache.exp > Date.now()) return tokenCache.t;
+  const basic = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString("base64");
+  const r = await fetch(`${mpesaBase()}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${basic}` } });
+  const d: any = await r.json().catch(() => ({}));
+  if (!d.access_token) throw new Error("M-Pesa sign-in failed");
+  tokenCache = { t: d.access_token, exp: Date.now() + 50 * 60_000 };
+  return d.access_token;
+}
+const stamp = () => new Date(Date.now() + 3 * 3600_000).toISOString().replace(/\D/g, "").slice(0, 14);
+
 /**
- * Ask PayHero what happened to a prompt that is still "pending" (its reply to us can get lost).
- * SUCCESS -> paid, FAILED -> closed, still queued -> left alone (closed after 15 minutes with no answer).
+ * Ask Safaricom what happened to a prompt that is still "pending" (their reply to us can get lost).
+ * Success -> paid, cancelled/failed -> closed, still being processed -> left alone (closed after 15 minutes with no answer).
  */
 const lastAsked = new Map<number, number>();
 async function reconcile(id: number) {
@@ -438,21 +441,29 @@ async function reconcile(id: number) {
   const p = r.rows[0];
   if (!p || p.status !== "pending" || p.method !== "mpesa" || !p.checkout_id || p.age < 40) return;
   if (String(p.note).startsWith("Amount received differs")) return; // money arrived but not the amount asked: a person must check it
+  const ts = stamp();
+  const shortcode = process.env.MPESA_SHORTCODE!;
   let d: any = {};
   try {
-    const q = await fetch(`${PAYHERO}/transaction-status?reference=${encodeURIComponent(p.checkout_id)}`, { headers: { Authorization: payheroAuth() } });
+    const token = await mpesaToken();
+    const q = await fetch(`${mpesaBase()}/mpesa/stkpushquery/v1/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ BusinessShortCode: shortcode, Password: Buffer.from(shortcode + process.env.MPESA_PASSKEY + ts).toString("base64"), Timestamp: ts, CheckoutRequestID: p.checkout_id }),
+    });
     d = await q.json().catch(() => ({}));
   } catch { return; }
-  const st = String(d.status ?? "").toUpperCase();
-  if (st === "SUCCESS") {
-    const code = /^[A-Z0-9]{10}$/.test(String(d.provider_reference ?? "")) ? String(d.provider_reference) : "";
-    const up = await pool.query("UPDATE payments SET status='paid', receipt=CASE WHEN receipt='' THEN $2 ELSE receipt END, note='Confirmed by a check with PayHero' WHERE id=$1 AND status='pending' RETURNING id", [id, code]);
+  if (d.ResultCode === undefined || d.ResultCode === null || d.ResultCode === "") {
+    // "still being processed" (or no answer): close it only after a long silence
+    if (p.age > 900) await pool.query("UPDATE payments SET status='failed', note='No reply from M-Pesa' WHERE id=$1 AND status='pending'", [id]);
+    return;
+  }
+  const code = Number(d.ResultCode);
+  if (code === 0) {
+    const up = await pool.query("UPDATE payments SET status='paid', note='Confirmed by a check with Safaricom' WHERE id=$1 AND status='pending' RETURNING id", [id]);
     if (up.rows[0]) await notifyPaid(id);
-  } else if (st === "FAILED") {
-    await pool.query("UPDATE payments SET status='failed', note='The payment did not go through' WHERE id=$1 AND status='pending'", [id]);
-  } else if (p.age > 900) {
-    // still queued, or no answer: close it only after a long silence
-    await pool.query("UPDATE payments SET status='failed', note='No reply from M-Pesa' WHERE id=$1 AND status='pending'", [id]);
+  } else {
+    await pool.query("UPDATE payments SET status=$2, note=$3 WHERE id=$1 AND status='pending'", [id, code === 1032 ? "cancelled" : "failed", String(d.ResultDesc ?? "").slice(0, 200)]);
   }
 }
 
@@ -472,63 +483,68 @@ router.post("/payments/mpesa", async (req: Request, res: Response) => {
     ).catch((e) => { if (isDupStage(e)) return null; throw e; });
     if (!ins) { res.status(409).json({ error: "A payment for this step is already in progress or paid." }); return; }
     const id = ins.rows[0].id as number;
+    const ts = stamp();
+    const shortcode = process.env.MPESA_SHORTCODE!;
+    const till = process.env.MPESA_TYPE === "till";
     const base = (process.env.PUBLIC_API_URL ?? process.env.RENDER_EXTERNAL_URL ?? "").replace(/\/$/, "");
     try {
-      const r = await fetch(`${PAYHERO}/payments`, {
+      const token = await mpesaToken();
+      const r = await fetch(`${mpesaBase()}/mpesa/stkpush/v1/processrequest`, {
         method: "POST",
-        headers: { Authorization: payheroAuth(), "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: p.amount,
-          phone_number: p.phone,
-          channel_id: payheroChannel(),
-          provider: "m-pesa",
-          external_reference: `PAY-${id}`,
-          customer_name: p.name.slice(0, 60),
-          ...(base ? { callback_url: `${base}/api/payments/mpesa/callback/${callbackSecret()}` } : {}),
+          BusinessShortCode: shortcode,
+          Password: Buffer.from(shortcode + process.env.MPESA_PASSKEY + ts).toString("base64"),
+          Timestamp: ts,
+          TransactionType: till ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline",
+          Amount: p.amount,
+          PartyA: p.phone,
+          PartyB: process.env.MPESA_TILL ?? shortcode,
+          PhoneNumber: p.phone,
+          CallBackURL: `${base}/api/payments/mpesa/callback/${callbackSecret()}`,
+          AccountReference: `DIGHAZ-${id}`.slice(0, 12),
+          TransactionDesc: p.item.slice(0, 20),
         }),
       });
       const d: any = await r.json().catch(() => ({}));
-      if (!r.ok || d.success === false || !d.reference) throw new Error(String(d.error_message || d.message || d.error || "PayHero refused the request"));
-      // PayHero's own reference for this prompt: used to ask PayHero for the result if its reply to us is lost
-      await pool.query("UPDATE payments SET checkout_id=$1 WHERE id=$2", [String(d.reference), id]);
+      if (d.ResponseCode !== "0") throw new Error(d.errorMessage || d.ResponseDescription || "M-Pesa refused the request");
+      await pool.query("UPDATE payments SET checkout_id=$1 WHERE id=$2", [d.CheckoutRequestID, id]);
       res.json({ id, status: "pending", key: viewKey(p.phone) });
     } catch (e) {
       await pool.query("UPDATE payments SET status='failed', note=$1 WHERE id=$2", [String((e as Error).message).slice(0, 200), id]);
-      // PayHero's own reason is shown (short) so a set-up problem, like an empty service wallet or an account that is not live, can be seen at once
-      const why = String((e as Error).message ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
-      res.status(502).json({ error: `Could not send the M-Pesa prompt.${why ? ` Reason: ${why}.` : ""} Check the number and try again.` });
+      res.status(502).json({ error: "Could not send the M-Pesa prompt. Check the number and try again." });
     }
   } catch { res.status(500).json({ error: "Something went wrong. Please try again." }); }
 });
 
-// PayHero calls this when the client enters (or cancels) the PIN. The payment is found by the reference we sent (PAY-<id>).
+// Safaricom calls this when the client enters (or cancels) the PIN.
 router.post("/payments/mpesa/callback/:secret", async (req: Request, res: Response) => {
-  res.json({ ok: true });
+  res.json({ ResultCode: 0, ResultDesc: "Accepted" });
   try {
     if (req.params.secret !== callbackSecret()) return;
     await ensureTables();
-    const cb = req.body?.response;
-    const m = /^PAY-(\d+)$/.exec(String(cb?.ExternalReference ?? ""));
-    if (!m) return;
-    const id = Number(m[1]);
-    const code = cb.ResultCode === undefined || cb.ResultCode === null || cb.ResultCode === "" ? NaN : Number(cb.ResultCode);
-    if (code === 0) {
-      const receipt = String(cb.MpesaReceiptNumber ?? "");
-      const paidAmt = Number(cb.Amount);
+    const cb = req.body?.Body?.stkCallback;
+    if (!cb?.CheckoutRequestID) return;
+    if (Number(cb.ResultCode) === 0) {
+      const items: any[] = cb.CallbackMetadata?.Item ?? [];
+      const get = (n: string) => items.find((i) => i.Name === n)?.Value;
+      const receipt = String(get("MpesaReceiptNumber") ?? "");
+      const paidAmt = Number(get("Amount"));
       // Only mark paid when the money received matches what was asked for
       const up = await pool.query(
         `UPDATE payments SET status = CASE WHEN $3::numeric = amount THEN 'paid' ELSE 'pending' END, receipt=$2,
            note = CASE WHEN $3::numeric = amount THEN '' ELSE 'Amount received differs: check M-Pesa' END
-         WHERE id=$1 AND method='mpesa' AND status='pending' RETURNING id, status`,
-        [id, receipt, Number.isFinite(paidAmt) ? paidAmt : -1],
+         WHERE checkout_id=$1 AND status='pending' RETURNING id, status`,
+        [cb.CheckoutRequestID, receipt, Number.isFinite(paidAmt) ? paidAmt : -1],
       );
-      // if our own check with PayHero already marked it paid, this reply only adds the receipt number
-      if (receipt) await pool.query("UPDATE payments SET receipt=$2 WHERE id=$1 AND method='mpesa' AND status='paid' AND receipt=''", [id, receipt]);
+      // if our own check with Safaricom already marked it paid, this reply only adds the receipt number
+      if (receipt) await pool.query("UPDATE payments SET receipt=$2 WHERE checkout_id=$1 AND status='paid' AND receipt=''", [cb.CheckoutRequestID, receipt]);
       const done = up.rows.find((x) => x.status === "paid");
       if (done) await notifyPaid(done.id);
-    } else if (Number.isFinite(code)) {
-      await pool.query("UPDATE payments SET status=$2, note=$3 WHERE id=$1 AND method='mpesa' AND status='pending'", [
-        id, code === 1032 ? "cancelled" : "failed", String(cb.ResultDesc ?? "").slice(0, 200),
+    } else {
+      const cancelled = Number(cb.ResultCode) === 1032;
+      await pool.query("UPDATE payments SET status=$2, note=$3 WHERE checkout_id=$1 AND status='pending'", [
+        cb.CheckoutRequestID, cancelled ? "cancelled" : "failed", String(cb.ResultDesc ?? "").slice(0, 200),
       ]);
     }
   } catch { /* nothing to send back */ }
