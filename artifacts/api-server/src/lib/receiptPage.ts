@@ -83,12 +83,14 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 :root{--navy:#0b3a8c;--ink:#0f172a;--mut:#475569;--hole:#cfd6e2}
 *{box-sizing:border-box}body{margin:0;background:#e8edf4;font:500 13px/1.4 Inter,"Helvetica Neue",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:16px 8px 24px}
 .wrap{display:flex;justify-content:center}
-.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:18px 26px 14px 62px;overflow:hidden}
+.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:18px 26px 14px 50px;overflow:hidden}
 /* the left edge of a receipt book: the torn perforation with its punched holes */
 .wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:400px 130px}
 .sheet>*:not(.wm):not(.perf){position:relative}
-.perf{position:absolute;left:0;top:0;bottom:0;width:36px;background:radial-gradient(circle at 18px 50%,var(--hole) 0,var(--hole) 5.5px,transparent 6.2px) 0 0/36px 38px repeat-y;border-right:2px dashed #b8c2d2}
-.perf:after{content:"";position:absolute;right:0;top:0;bottom:0;width:10px;background:linear-gradient(90deg,transparent,rgba(15,23,42,.06))}
+.perf{position:absolute;left:0;top:0;bottom:0;width:16px;background:radial-gradient(circle at 0 50%,var(--page) 0,var(--page) 7px,transparent 7.7px) 0 0/16px 21px repeat-y}
+.perf:before{content:"";position:absolute;left:16px;top:0;bottom:0;border-left:1.5px dashed #c3ccdb}
+.perf:after{content:"";position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,23,42,.07),transparent)}
+.sheet{--page:#e8edf4}.sheet.cap{--page:#fff}
 .top{display:flex;align-items:center;gap:12px}.lg{width:215px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:2px 0}
 .ct{list-style:none;margin:0;padding:0;flex:1;min-width:0}.ct li{display:flex;align-items:center;gap:7px;font-weight:600;font-size:11.5px;color:var(--navy);margin:3px 0;white-space:nowrap}
 .rt{flex:none;width:200px;text-align:left}.pill{background:var(--navy);color:#fff;font:800 30px/1 Inter,Arial,sans-serif;letter-spacing:.02em;text-align:center;padding:9px 0;border-radius:10px}
@@ -105,8 +107,8 @@ hr{border:0;border-top:2px solid var(--navy);margin:0 0 6px}
 .rf{font-size:10.5px;color:var(--mut);margin-top:8px}
 .foot{text-align:center;font-size:9.5px;color:var(--mut);margin-top:8px;border-top:1px solid #e2e8f0;padding-top:4px}
 .btns{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}.btns button{border:0;background:var(--navy);color:#fff;font:500 13px Inter,Arial,sans-serif;padding:11px 26px;border-radius:10px;cursor:pointer}.btns button.alt{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}.btns button:disabled{opacity:.6}.sheet.cap{box-shadow:none;border:0}
-@page{size:200mm 140mm;margin:4mm}@media print{body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
-${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<div class="wrap"><div class="sheet" id="sh">
+@page{size:200mm 140mm;margin:4mm}@media print{.sheet{--page:#fff}body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
+${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none;--page:#fff}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<div class="wrap"><div class="sheet" id="sh">
 <div class="wm"></div><div class="perf"></div>
 <div class="top"><img class="lg" src="data:image/png;base64,${RECEIPT_LOGO_B64}" alt="${esc(name)}"><div class="vr"></div>
 <ul class="ct"><li>${ico("#25a244", PH)}${esc(wa)}</li><li>${ico("#d62828", PH)}${esc(phone2)}</li><li>${mail}${esc(co.email)}</li><li>${globe}${esc(site)}</li></ul>
