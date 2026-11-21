@@ -73,6 +73,8 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
   const forWhat = [d.item, d.stepLabel ? `- ${d.stepLabel}` : "", d.contractNo ? `, Contract ${d.contractNo}` : ""].join(" ").replace(/\s+,/g, ",").trim();
   const when = d.date.toLocaleDateString("en-KE", { timeZone: "Africa/Nairobi", day: "numeric", month: "long", year: "numeric" });
   const by = d.receivedBy || co.signatoryName;
+  const wmSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="130" viewBox="0 0 400 130"><text x="200" y="70" text-anchor="middle" transform="rotate(-14 200 65)" font-family="Georgia,serif" font-weight="700" font-size="15" letter-spacing="0.6" fill="#0a5cb8" fill-opacity="0.075">${esc(name)}</text></svg>`;
+  const wmTile = `data:image/svg+xml,${encodeURIComponent(wmSvg)}`;
   const fill = (label: string, v: string) => `<div class="f"><span>${label}</span><u>${esc(v)}</u></div>`;
   const ref = [d.reference ? `Ref: ${d.reference}` : "", d.note ?? ""].filter(Boolean).join(" · ");
   const amt = `${Math.round(d.amount).toLocaleString("en-KE")}/=`;
@@ -83,6 +85,8 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .wrap{display:flex;justify-content:center}
 .sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:18px 26px 14px 62px;overflow:hidden}
 /* the left edge of a receipt book: the torn perforation with its punched holes */
+.wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:400px 130px}
+.sheet>*:not(.wm):not(.perf){position:relative}
 .perf{position:absolute;left:0;top:0;bottom:0;width:36px;background:radial-gradient(circle at 18px 50%,var(--hole) 0,var(--hole) 5.5px,transparent 6.2px) 0 0/36px 38px repeat-y;border-right:2px dashed #b8c2d2}
 .perf:after{content:"";position:absolute;right:0;top:0;bottom:0;width:10px;background:linear-gradient(90deg,transparent,rgba(15,23,42,.06))}
 .top{display:flex;align-items:center;gap:12px}.lg{width:215px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:2px 0}
@@ -103,7 +107,7 @@ hr{border:0;border-top:2px solid var(--navy);margin:0 0 6px}
 .btns{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}.btns button{border:0;background:var(--navy);color:#fff;font:500 13px Inter,Arial,sans-serif;padding:11px 26px;border-radius:10px;cursor:pointer}.btns button.alt{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}.btns button:disabled{opacity:.6}.sheet.cap{box-shadow:none;border:0}
 @page{size:200mm 140mm;margin:4mm}@media print{body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
 ${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<div class="wrap"><div class="sheet" id="sh">
-<div class="perf"></div>
+<div class="wm"></div><div class="perf"></div>
 <div class="top"><img class="lg" src="data:image/png;base64,${RECEIPT_LOGO_B64}" alt="${esc(name)}"><div class="vr"></div>
 <ul class="ct"><li>${ico("#25a244", PH)}${esc(wa)}</li><li>${ico("#d62828", PH)}${esc(phone2)}</li><li>${mail}${esc(co.email)}</li><li>${globe}${esc(site)}</li></ul>
 <div class="rt"><div class="pill">RECEIPT</div><div class="nr"><b>No.</b><span class="nb">${esc(d.no)}</span></div><div class="dr"><b>Date:</b><u>${esc(when)}</u></div></div></div>
