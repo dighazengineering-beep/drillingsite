@@ -1,13 +1,18 @@
+import CopyLink from "@/components/CopyLink";
+import { surveyFirst } from "@/lib/order";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, Smartphone, Landmark, CheckCircle2, Loader2, Wallet, ShieldCheck, Copy, AlertCircle, Upload } from "lucide-react";
+import { X, Smartphone, Landmark, Banknote, FileText, CheckCircle2, Loader2, Wallet, ShieldCheck, Copy, AlertCircle, Upload } from "lucide-react";
 import { rememberPhone, rememberKey, keyFor } from "@/components/NotificationBell";
-import { API, memberApi, memberToken, kes } from "@/lib/member";
+import { copyText } from "@/lib/copy";
+import { API, memberApi, memberToken, kes, docUrl } from "@/lib/member";
+import { PhoneField } from "@/components/PhoneField";
+import { OfflinePayFields, emptyOffline, offlineBody, type OfflineState } from "@/components/OfflinePayFields";
 
 type Kind = "service" | "product";
 type PayType = "deposit" | "balance" | "full";
 interface Item { name: string; price: number | null; unit?: string }
-interface Bal { found: boolean; priced?: boolean; agreedTotal: number; rate?: number | null; metres?: number | null; paid: number | null; pending: number; balance: number; overpaid?: number }
+interface Bal { found: boolean; agreedTotal: number; paid: number; pending: number; balance: number }
 interface Bank { bankName: string; accountName: string; accountNumber: string; paybill?: string }
 interface Cfg { mpesa: boolean; banks: Bank[] }
 
@@ -19,7 +24,7 @@ const digits = (v: string) => v.replace(/[^\d]/g, "");
 const money = (v: string) => (v === "" ? 0 : Number(v));
 const fmt = (v: number) => (v ? v.toLocaleString("en-KE") : "");
 
-export const openPay = (detail?: { kind?: Kind; item?: string }) => window.dispatchEvent(new CustomEvent("dighaz:pay", { detail }));
+export const openPay = (detail?: { kind?: Kind; item?: string; total?: number; name?: string; phone?: string }) => window.dispatchEvent(new CustomEvent("site:pay", { detail }));
 
 export default function PayDialog() {
   const [open, setOpen] = useState(false);
@@ -35,7 +40,8 @@ export default function PayDialog() {
   const [amountTouched, setAmountTouched] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [method, setMethod] = useState<"mpesa" | "bank">("mpesa");
+  const [method, setMethod] = useState<"mpesa" | "bank" | "cash" | "cheque">("mpesa");
+  const [off, setOff] = useState<OfflineState>(emptyOffline());
   const [bankRef, setBankRef] = useState("");
   const [img, setImg] = useState("");
   const [cfg, setCfg] = useState<Cfg>({ mpesa: true, banks: [] });
@@ -44,7 +50,10 @@ export default function PayDialog() {
   const [err, setErr] = useState("");
   const [phase, setPhase] = useState<"form" | "wait" | "paid" | "failed" | "bank">("form");
   const [receipt, setReceipt] = useState("");
+  const [paidId, setPaidId] = useState<{ id: number; key: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [locked, setLocked] = useState<string | null>(null); // price fixed by a quote
+  const [quoted, setQuoted] = useState(""); // the quote's own job name (a quote may cover several services), shown as an extra choice
   const poll = useRef<number | undefined>(undefined);
   const loaded = useRef(false);
 
@@ -54,10 +63,20 @@ export default function PayDialog() {
       const d = (e as CustomEvent).detail ?? {};
       if (d.kind) setKind(d.kind);
       if (d.item) setItem(d.item);
+      if (d.total) { setQuoted(String(d.item ?? "")); setLocked(String(Math.round(d.total))); setPayType("deposit"); setAmountTouched(false); if (d.name) setName(d.name); if (d.phone) setPhone(d.phone); } else setLocked(null);
       setPhase("form"); setErr(""); setOpen(true);
     };
-    window.addEventListener("dighaz:pay", h);
-    return () => window.removeEventListener("dighaz:pay", h);
+    window.addEventListener("site:pay", h);
+    return () => window.removeEventListener("site:pay", h);
+  }, []);
+
+  // a link from a quote (?quote=...) opens the card with the quoted service and price filled in
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("quote");
+    if (!t) return;
+    fetch(`${API}/api/quotes/${encodeURIComponent(t)}`).then((r) => (r.ok ? r.json() : null)).then((q) => {
+      if (q) window.dispatchEvent(new CustomEvent("site:pay", { detail: { kind: q.kind, item: q.item, total: q.total, name: q.name, phone: q.phone } }));
+    }).catch(() => {});
   }, []);
 
   // first open: load the catalogue, payment options and the signed-in client's details
@@ -67,11 +86,11 @@ export default function PayDialog() {
     const get = (p: string) => fetch(`${API}/api/${p}`).then((r) => r.json()).catch(() => []);
     Promise.all([get("services"), get("products?limit=100")]).then(([s, p]) => {
       setItems({
-        service: (Array.isArray(s) ? s : []).map((x: any) => ({ name: x.name, price: x.priceFrom ?? null, unit: x.priceUnit ?? "" })),
+        service: surveyFirst(Array.isArray(s) ? s : []).map((x: any) => ({ name: x.name, price: x.priceFrom ?? null, unit: x.priceUnit ?? "" })),
         product: (Array.isArray(p) ? p : (p?.items ?? [])).map((x: any) => ({ name: x.name, price: x.price != null ? Number(x.price) : null })),
       });
     });
-    fetch(`${API}/api/payments/config`).then((r) => r.json()).then((c: Cfg) => { setCfg(c); if (!c.mpesa && c.banks?.length) setMethod("bank"); }).catch(() => {});
+    fetch(`${API}/api/payments/config`).then((r) => r.json()).then((c: Cfg) => { setCfg(c); if (!c.mpesa) setMethod(c.banks?.length ? "bank" : "cash"); }).catch(() => {});
     if (memberToken()) memberApi<{ member: { name: string; phone: string } }>("/me").then((d) => { setName((v) => v || d.member.name || ""); setPhone((v) => v || d.member.phone || ""); }).catch(() => {});
   };
   // load the lists in the background right after the page opens, so the card appears ready (and wakes the server early)
@@ -80,21 +99,22 @@ export default function PayDialog() {
 
   useEffect(() => () => window.clearInterval(poll.current), []);
 
-  const list = items[kind];
+  const list = useMemo(() => (quoted && !items[kind].some((i) => i.name === quoted) ? [...items[kind], { name: quoted, price: null }] : items[kind]), [items, kind, quoted]);
   const chosen = list.find((i) => i.name === item);
 
   // choosing an item fills the catalogue price (the client may overwrite it with the agreed price)
   const perMetre = kind === "service" && /metre|meter/i.test(chosen?.unit ?? "");
   useEffect(() => {
+    if (locked) { setTotal(locked); return; }
     if (perMetre) { setCasing("pvc"); setRate(chosen?.price ? String(Math.round(chosen.price)) : ""); setDepth(""); setTotal(""); }
     else if (chosen?.price) setTotal(String(Math.round(chosen.price)));
     else if (item) setTotal("");
   }, [item, kind, chosen?.price, perMetre]);
   const pickCasing = (c: "pvc" | "steel") => { setCasing(c); setRate(c === "steel" ? String(STEEL_RATE) : chosen?.price ? String(Math.round(chosen.price)) : ""); };
-  const priced = !!bal?.priced; // Dighaz has recorded the agreed price for this job: the client cannot change it
-  const existing = priced;
-  useEffect(() => { if (perMetre && !existing) setTotal(money(rate) && money(depth) ? String(money(rate) * money(depth)) : ""); }, [rate, depth, perMetre, existing]);
-  useEffect(() => { setItem((v) => (items[kind].some((i) => i.name === v) ? v : "")); }, [kind, items]);
+  const existing = !!(bal?.found && bal.paid > 0); // a job already being paid keeps its agreed price
+  useEffect(() => { if (locked) setTotal(locked); }, [locked]);
+  useEffect(() => { if (locked) return; if (perMetre && !existing) setTotal(money(rate) && money(depth) ? String(money(rate) * money(depth)) : ""); }, [rate, depth, perMetre, existing, locked]);
+  useEffect(() => { setItem((v) => (!items[kind].length || v === quoted || items[kind].some((i) => i.name === v) ? v : "")); }, [kind, items, quoted]);
 
   // look up what this phone has already paid for this item
   const phoneOk = digits(phone).length >= 9;
@@ -105,57 +125,58 @@ export default function PayDialog() {
       fetch(`${API}/api/payments/balance?phone=${encodeURIComponent(phone)}&item=${encodeURIComponent(item)}&key=${encodeURIComponent(keyFor(phone))}`)
         .then((r) => r.json()).then((b: Bal) => {
           setBal(b);
-          if (b.priced) { setTotal(String(b.agreedTotal)); setPayType(b.balance <= 0 ? "full" : b.balance < b.agreedTotal ? "balance" : "deposit"); setAmountTouched(false); }
+          if (b.found && b.paid > 0) { setTotal(String(b.agreedTotal)); setPayType(b.balance > 0 ? "balance" : "full"); setAmountTouched(false); }
         }).catch(() => {});
     }, 450);
     return () => window.clearTimeout(t);
   }, [phone, item, phoneOk, open]);
 
-  // With an agreed price, the total and what is left come from Dighaz. Without one, the total is only the client's estimate.
-  const T = priced ? bal!.agreedTotal : money(total);
-  const left = priced ? bal!.balance : T;
-  const paid = priced ? Math.max(0, T - left) : 0;
+  const T = money(total);
+  const paid = bal?.found ? bal.paid : 0;
+  const left = Math.max(0, T - paid);
   const suggested = useMemo(() => {
     if (!T) return 0;
-    if (payType === "deposit") return priced ? Math.min(left, Math.round((T * DEPOSIT_PCT) / 100)) : Math.round((T * DEPOSIT_PCT) / 100);
-    return left;
-  }, [T, payType, left, priced]);
+    if (payType === "deposit") return Math.round((T * DEPOSIT_PCT) / 100);
+    if (payType === "balance") return left;
+    return T - paid;
+  }, [T, payType, left, paid]);
   useEffect(() => { if (!amountTouched) setAmount(suggested ? String(suggested) : ""); }, [suggested, amountTouched]);
   useEffect(() => { setAmountTouched(false); }, [payType, item]);
 
   const A = money(amount);
-  const done = priced && bal!.balance <= 0;
-  const quoteText = priced ? "" : perMetre && money(rate) && money(depth)
-    ? `${casing === "steel" ? "Steel" : "PVC"} casing, ${money(depth)} m at KSh ${money(rate).toLocaleString("en-KE")} per metre = KSh ${T.toLocaleString("en-KE")}`
-    : T ? `Estimated price KSh ${T.toLocaleString("en-KE")}` : "";
+  const done = bal?.found && bal.balance <= 0 && bal.paid > 0 && T <= bal.paid;
 
-  const reset = () => { window.clearInterval(poll.current); setPhase("form"); setErr(""); setBankRef(""); setImg(""); setReceipt(""); setBusy(false); };
-  const close = (v: boolean) => { setOpen(v); if (!v) reset(); };
+  const reset = () => { window.clearInterval(poll.current); setPhase("form"); setErr(""); setBankRef(""); setImg(""); setOff(emptyOffline()); setReceipt(""); setPaidId(null); setBusy(false); };
+  const close = (v: boolean) => { setOpen(v); if (!v) { reset(); setLocked(null); setQuoted(""); } };
 
   const submit = async () => {
     setErr("");
     if (!item) return setErr("Choose what you are paying for.");
+    if (perMetre && !existing && !locked && !money(depth)) return setErr("Enter the agreed depth in metres.");
+    if (!T) return setErr("Enter the agreed price.");
     if (!A) return setErr("Enter the amount to pay.");
-    if (priced && A > left) return setErr(`The most you can pay now is ${kes(left)}.`);
+    if (A > T) return setErr("The amount cannot be more than the agreed price.");
     if (name.trim().length < 2) return setErr("Enter your name.");
     if (!phoneOk) return setErr("Enter your phone number.");
     if (method === "bank" && bankRef.trim().length < 3 && !img) return setErr("Upload your payment receipt, or paste the bank message.");
+    if (method === "cheque" && off.details.trim().length < 3) return setErr("Enter the cheque number and the bank.");
+    if (method === "mpesa" && !/^254[17]\d{8}$/.test(phone.replace(/\D/g, ""))) return setErr("M-Pesa works with Kenyan numbers only. Choose bank, cash or cheque.");
     setBusy(true);
-    // the price is never sent: Dighaz holds the agreed price. Without one, only a deposit is taken and the estimate is passed on for us to see.
-    const body = { name, phone, kind, item, payType: priced ? payType : "deposit", amount: A, quote: quoteText, bankRef, receiptImg: img || undefined };
+    const offline = method === "cash" || method === "cheque";
+    const body = { name, phone, kind, item, payType, amount: A, agreedTotal: T, bankRef, ...(offline ? {} : { receiptImg: img || undefined }), ...(offline ? { method, ...offlineBody(off) } : {}) };
     try {
-      const r = await fetch(`${API}/api/payments/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(`${API}/api/payments/${offline ? "offline" : method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong.");
-      rememberPhone(phone); rememberKey(phone, d.key); window.dispatchEvent(new Event("dighaz:phone"));
-      if (method === "bank") { setPhase("bank"); setBusy(false); return; }
+      rememberPhone(phone); rememberKey(phone, d.key); window.dispatchEvent(new Event("site:phone"));
+      if (method !== "mpesa") { setPhase("bank"); setBusy(false); return; }
       setPhase("wait");
       let tries = 0;
       poll.current = window.setInterval(async () => {
         tries++;
         try {
           const s = await fetch(`${API}/api/payments/${d.id}/status?key=${encodeURIComponent(d.key ?? "")}`).then((x) => x.json());
-          if (s.status === "paid") { window.clearInterval(poll.current); setReceipt(s.receipt || ""); setPhase("paid"); }
+          if (s.status === "paid") { window.clearInterval(poll.current); setReceipt(s.receipt || ""); setPaidId({ id: d.id, key: d.key ?? "" }); setPhase("paid"); }
           else if (s.status === "failed" || s.status === "cancelled") { window.clearInterval(poll.current); setErr(s.status === "cancelled" ? "The payment was cancelled on your phone." : `The payment did not go through.${s.note ? ` (${s.note})` : ""}`); setPhase("failed"); }
         } catch { /* keep trying */ }
         if (tries > 80) { window.clearInterval(poll.current); setErr("We did not get a reply from M-Pesa. If money was taken, call us and we will confirm it."); setPhase("failed"); }
@@ -180,17 +201,17 @@ export default function PayDialog() {
     im.src = URL.createObjectURL(f);
   };
 
-  const copy = (t: string) => { navigator.clipboard?.writeText(t).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
+  const copy = (t: string) => { void copyText(t).then((ok) => { if (ok) { setCopied(true); window.setTimeout(() => setCopied(false), 1500); } else window.prompt("Copy this:", t); }); };
 
   return (
     <Dialog.Root open={open} onOpenChange={close}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[80] bg-[hsl(160_46%_6%)]/65 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <Dialog.Overlay className="fixed inset-0 z-[80] bg-[hsl(215_70%_8%)]/65 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <Dialog.Content
           aria-describedby={undefined}
           className="fixed left-1/2 top-1/2 z-[81] max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-3xl bg-card shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
         >
-          <div className="relative overflow-hidden rounded-t-3xl px-5 pb-4 pt-5 text-white" style={{ background: "linear-gradient(135deg, hsl(160 52% 12%), hsl(155 56% 24%) 60%, hsl(199 80% 38%))" }}>
+          <div className="relative overflow-hidden rounded-t-3xl px-5 pb-4 pt-5 text-white" style={{ background: "linear-gradient(135deg, hsl(160 52% 12%), hsl(212 85% 26%) 55%, hsl(210 100% 35%) 80%, hsl(38 92% 50%))" }}>
             <Dialog.Close className="absolute right-3 top-3 rounded-full bg-white/15 p-1.5 transition hover:bg-white/25" aria-label="Close"><X className="h-4 w-4" /></Dialog.Close>
             <div className="flex items-center gap-2.5">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25"><Wallet className="h-5 w-5" /></span>
@@ -214,90 +235,83 @@ export default function PayDialog() {
 
                 <div>
                   <label className={lab}>{kind === "service" ? "Service" : "Product"}</label>
-                  <select value={item} onChange={(e) => setItem(e.target.value)} className={inp} data-testid="pay-item">
+                  <select value={item} onChange={(e) => { setLocked(null); setItem(e.target.value); }} className={inp} data-testid="pay-item">
                     <option value="">{list.length ? "Choose…" : "Loading…"}</option>
                     {list.map((i) => <option key={i.name} value={i.name}>{i.name}</option>)}
                   </select>
                 </div>
 
-                {priced && !done && (
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
                   {([["deposit", "Deposit"], ["balance", "Balance"], ["full", "Full"]] as const).map(([k, n]) => (
                     <button key={k} type="button" onClick={() => setPayType(k)} className={`rounded-lg py-1.5 text-xs font-bold transition ${payType === k ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground"}`}>{n}</button>
                   ))}
                 </div>
-                )}
 
-                {perMetre && !existing && (
+                {perMetre && !existing && !locked && !/flush|open\s+(borehole\s+)?drill/i.test(String(item)) && (
                   <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
                     {([["pvc", "PVC casing"], ["steel", "Steel casing"]] as const).map(([k, n]) => (
                       <button key={k} type="button" onClick={() => pickCasing(k)} className={`rounded-lg py-1.5 text-xs font-bold transition ${casing === k ? "bg-card text-primary shadow" : "text-muted-foreground"}`}>{n}</button>
                     ))}
                   </div>
                 )}
-                {perMetre && !existing && (
+                {perMetre && !existing && !locked && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className={lab}>Price per metre (KSh)</label>
                       <input inputMode="numeric" value={fmt(money(rate))} onChange={(e) => setRate(digits(e.target.value))} placeholder="0" className={inp} data-testid="pay-rate" />
                     </div>
                     <div>
-                      <label className={lab}>Depth you expect (metres)</label>
+                      <label className={lab}>Agreed depth (metres)</label>
                       <input inputMode="numeric" value={depth} onChange={(e) => setDepth(digits(e.target.value))} placeholder="e.g. 150" className={inp} data-testid="pay-depth" />
                     </div>
                   </div>
                 )}
 
-                {priced && (
-                  <div className="rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5 text-xs" data-testid="pay-agreed">
-                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Agreed price</span><b className="text-sm text-foreground">{kes(bal!.agreedTotal)}</b></div>
-                    {bal!.rate && bal!.metres ? <p className="mt-0.5 text-[11px] text-muted-foreground">{kes(bal!.rate)} per metre × {bal!.metres} metres</p> : null}
-                    <div className="mt-1.5 flex items-center justify-between border-t border-primary/15 pt-1.5">
-                      <span className="text-muted-foreground">Paid so far <b className="text-foreground">{kes(paid)}</b></span>
-                      <span className="font-bold text-primary">{bal!.balance > 0 ? `Left to pay ${kes(bal!.balance)}` : "Fully paid"}</span>
-                    </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={lab}>{perMetre && !existing && !locked ? "Total price (KSh)" : "Agreed price (KSh)"}</label>
+                    <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => { setLocked(null); setTotal(digits(e.target.value)); }} readOnly={perMetre && !existing && !locked} placeholder="0" className={`${inp} ${perMetre && !existing && !locked ? "bg-muted/60" : ""}`} data-testid="pay-total" />
                   </div>
-                )}
-                {!priced && item && (
-                  <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900" data-testid="pay-unpriced">
-                    Your final price is confirmed by Dighaz Engineering once we agree it with you. You can pay a deposit now and we will confirm your balance.
-                  </p>
-                )}
-
-                <div className={`grid gap-2 ${priced ? "grid-cols-1" : "grid-cols-2"}`}>
-                  {!priced && (
-                    <div>
-                      <label className={lab}>{perMetre ? "Estimated total (KSh)" : "Estimated price (KSh)"}</label>
-                      <input inputMode="numeric" value={fmt(money(total))} onChange={(e) => setTotal(digits(e.target.value))} readOnly={perMetre} placeholder="0" className={`${inp} ${perMetre ? "bg-muted/60" : ""}`} data-testid="pay-total" />
-                    </div>
-                  )}
                   <div>
                     <label className={lab}>Pay now (KSh)</label>
                     <input inputMode="numeric" value={fmt(A)} onChange={(e) => { setAmountTouched(true); setAmount(digits(e.target.value)); }} placeholder="0" className={`${inp} font-bold text-primary`} data-testid="pay-amount" />
                   </div>
                 </div>
-                {!priced && T > 0 && <p className="-mt-1 text-[11px] text-muted-foreground">The suggested deposit is {DEPOSIT_PCT}% of your estimate. You can change the amount.</p>}
-                {priced && payType === "deposit" && T > 0 && <p className="-mt-1 text-[11px] text-muted-foreground">A deposit counts toward the agreed price. You can change the amount.</p>}
 
-                <div className="grid grid-cols-2 gap-2">
+                {bal?.found && bal.paid > 0 && (
+                  <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/5 px-3 py-2 text-xs">
+                    <span className="text-muted-foreground">Paid <b className="text-foreground">{kes(bal.paid)}</b></span>
+                    <span className="font-bold text-primary">{bal.balance > 0 ? `Balance ${kes(bal.balance)}` : "Fully paid"}</span>
+                  </div>
+                )}
+                {payType === "deposit" && T > 0 && <p className="-mt-1 text-[11px] text-muted-foreground">Deposit is {DEPOSIT_PCT}% of the price and counts toward the total. You can change the amount.</p>}
+
+                <div className="grid gap-2">
                   <div>
                     <label className={lab}>Your name</label>
                     <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className={inp} data-testid="pay-name" />
                   </div>
                   <div>
                     <label className={lab}>Phone</label>
-                    <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="07xx xxx xxx" className={inp} data-testid="pay-phone" />
+                    <PhoneField value={phone} onChange={setPhone} kenyaOnly={method === "mpesa"} className={inp} testId="pay-phone" />
                   </div>
                 </div>
 
-                <div className={`grid gap-1 rounded-xl bg-muted p-1 ${cfg.banks.length > 0 && cfg.mpesa ? "grid-cols-2" : "grid-cols-1"}`}>
-                  {cfg.mpesa && (
-                    <button type="button" onClick={() => setMethod("mpesa")} className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition ${method === "mpesa" ? "bg-card text-primary shadow" : "text-muted-foreground"}`}><Smartphone className="h-3.5 w-3.5" /> M-Pesa</button>
-                  )}
-                  {cfg.banks.length > 0 && (
-                    <button type="button" onClick={() => setMethod("bank")} className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition ${method === "bank" ? "bg-card text-primary shadow" : "text-muted-foreground"}`}><Landmark className="h-3.5 w-3.5" /> Bank transfer</button>
-                  )}
-                </div>
+                {(() => {
+                  const ms = [
+                    ...(cfg.mpesa ? [{ id: "mpesa" as const, label: "M-Pesa", Icon: Smartphone }] : []),
+                    ...(cfg.banks.length > 0 ? [{ id: "bank" as const, label: "Bank", Icon: Landmark }] : []),
+                    { id: "cash" as const, label: "Cash", Icon: Banknote },
+                    { id: "cheque" as const, label: "Cheque", Icon: FileText },
+                  ];
+                  return (
+                    <div className="grid gap-1 rounded-xl bg-muted p-1" style={{ gridTemplateColumns: `repeat(${ms.length}, minmax(0, 1fr))` }}>
+                      {ms.map(({ id, label, Icon }) => (
+                        <button key={id} type="button" onClick={() => setMethod(id)} data-testid={`pay-method-${id}`} className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-bold transition ${method === id ? "bg-card text-primary shadow" : "text-muted-foreground"}`}><Icon className="h-3.5 w-3.5" /> {label}</button>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {method === "bank" && cfg.banks.length > 0 && (
                   <div className="space-y-2 rounded-xl border border-border bg-background p-3 text-xs">
@@ -326,14 +340,16 @@ export default function PayDialog() {
                   </div>
                 )}
 
-                {!cfg.mpesa && !cfg.banks.length && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Online payment is not switched on yet. Please call us to pay.</p>}
+                {(method === "cash" || method === "cheque") && (
+                  <OfflinePayFields method={method} state={off} onChange={setOff} amount={A ? kes(A) : "KSh 0"} payee={cfg.banks[0]?.accountName || "Dighaz Engineering Limited"} inp={inp} lab={lab} />
+                )}
                 {err && <p className="flex items-start gap-1.5 text-xs text-red-600"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{err}</p>}
 
-                <button type="button" onClick={submit} disabled={busy || done || (!cfg.mpesa && !cfg.banks.length)} data-testid="pay-submit"
+                <button type="button" onClick={submit} disabled={busy || done} data-testid="pay-submit"
                   className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-extrabold text-white shadow-lg transition active:scale-[.98] disabled:opacity-50"
-                  style={{ background: method === "mpesa" ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg, hsl(155 56% 24%), hsl(199 80% 38%))" }}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : method === "mpesa" ? <Smartphone className="h-4 w-4" /> : <Landmark className="h-4 w-4" />}
-                  {done ? "Fully paid" : method === "mpesa" ? `Pay ${A ? kes(A) : ""} with M-Pesa` : "I have paid"}
+                  style={{ background: method === "mpesa" ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg, hsl(160 52% 16%), hsl(210 100% 35%))" }}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : method === "mpesa" ? <Smartphone className="h-4 w-4" /> : method === "bank" ? <Landmark className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+                  {done ? "Fully paid" : method === "mpesa" ? `Pay ${A ? kes(A) : ""} with M-Pesa` : method === "bank" ? "I have paid" : `Submit ${method} payment`}
                 </button>
                 <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground"><ShieldCheck className="h-3 w-3" /> Secure payment to Dighaz Engineering Limited</p>
               </div>
@@ -351,8 +367,7 @@ export default function PayDialog() {
                 <CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" />
                 <p className="mt-3 text-lg font-extrabold text-foreground">Payment received</p>
                 <p className="mt-1 text-sm text-muted-foreground">{kes(A)} for {item}.{receipt ? ` M-Pesa code ${receipt}.` : ""}</p>
-                {priced ? (left - A > 0 ? <p className="mt-2 text-sm font-semibold text-primary">Balance left: {kes(left - A)}</p> : <p className="mt-2 text-sm font-semibold text-emerald-700">Fully paid. Thank you!</p>)
-                  : <p className="mt-2 text-sm font-semibold text-primary">We will confirm your price and balance with you.</p>}
+                {T - paid - A > 0 && <p className="mt-2 text-sm font-semibold text-primary">Balance left: {kes(T - paid - A)}</p>}
                 <button onClick={() => close(false)} className="mt-5 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground">Done</button>
               </div>
             )}
@@ -360,8 +375,10 @@ export default function PayDialog() {
               <div className="py-6 text-center">
                 <CheckCircle2 className="mx-auto h-11 w-11 text-sky-500" />
                 <p className="mt-3 text-lg font-extrabold text-foreground">Thank you</p>
-                <p className="mt-1 text-sm text-muted-foreground">We will check our bank and confirm your {kes(A)} payment shortly.</p>
-                <button onClick={() => close(false)} className="mt-5 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground">Done</button>
+                <p className="mt-1 text-sm text-muted-foreground">{method === "bank" ? `We will check our bank and confirm your ${kes(A)} payment shortly.` : `We noted your ${kes(A)} ${method} payment. We will confirm it once we receive it, then send your receipt.`}</p>
+                {paidId && <div className="mt-3"><CopyLink url={docUrl(`/api/payments/${paidId.id}/receipt?key=${encodeURIComponent(paidId.key)}`)} label="Copy receipt link" withShare /></div>}
+                {paidId && <a href={docUrl(`/api/payments/${paidId.id}/receipt?key=${encodeURIComponent(paidId.key)}`)} target="_blank" rel="noreferrer" className="mt-4 inline-block rounded-xl border border-primary px-5 py-2 text-sm font-bold text-primary">View / print receipt</a>}
+                <div><button onClick={() => close(false)} className="mt-3 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground">Done</button></div>
               </div>
             )}
             {phase === "failed" && (

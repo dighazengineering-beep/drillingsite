@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { isAdminKey as isAdmin } from "../lib/adminAuth";
 import { db, productsTable, servicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { markDeleted } from "../lib/tombstones";
@@ -6,10 +7,6 @@ import { markDeleted } from "../lib/tombstones";
 // Admin editing of products and services (prices, details, stock). All routes need the ADMIN_KEY header.
 const router = Router();
 
-const isAdmin = (key: unknown) => {
-  const k = process.env.ADMIN_KEY;
-  return !!k && typeof key === "string" && key === k;
-};
 router.use("/admin", (req, res, next) => {
   if (!isAdmin(req.header("x-admin-key"))) { res.status(403).json({ error: "Admin only" }); return; }
   next();

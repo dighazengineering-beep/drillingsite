@@ -98,7 +98,8 @@ export const matchCounty = (name: string) => COUNTY_LIST.find((c) => norm(name).
 
 /** Work out the sub-county and ward from place names a map gives for a spot (the ward is matched first, then the sub-county). */
 export function resolveArea(county: string, names: string[]): { county: string; sub: string; ward: string } {
-  const wanted = names.map(norm).filter(Boolean);
+  const strip = (x: string) => norm(x).replace(/\s+(sub[\s-]?county|ward|constituency|division|location|sub[\s-]?location|county)$/, "").trim();
+  const wanted = names.flatMap((x) => [norm(x), strip(x)]).filter(Boolean);
   const pools = county && countyData(county) ? ([[countyName(county), countyData(county)!]] as [string, { s: Record<string, string[]>; a: string[] }][]) : allCounties();
   for (const n of wanted) {
     for (const [c, v] of pools) for (const [s, ws] of Object.entries(v.s)) { const w = ws.find((x) => norm(x) === n); if (w) return { county: c, sub: s, ward: w }; }
@@ -109,27 +110,58 @@ export function resolveArea(county: string, names: string[]): { county: string; 
   return { county, sub: "", ward: "" };
 }
 
+/** Names of every administrative boundary (county, constituency, sub-county, ward...) that contains the point, from OpenStreetMap. */
+async function boundaryNames(lat: number, lng: number): Promise<string[]> {
+  const q = encodeURIComponent(`[out:json][timeout:12];is_in(${lat},${lng});area._["boundary"="administrative"];out tags;`);
+  for (const host of ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]) {
+    try {
+      const ctl = new AbortController(); const t = window.setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(`${host}?data=${q}`, { signal: ctl.signal }); window.clearTimeout(t);
+      if (!r.ok) continue;
+      const j = await r.json() as { elements?: { tags?: Record<string, string> }[] };
+      const els = (j.elements ?? []).filter((e) => e.tags?.name).sort((a, b) => Number(b.tags?.admin_level ?? 0) - Number(a.tags?.admin_level ?? 0));
+      if (els.length) return els.map((e) => String(e.tags!.name));
+    } catch { /* try the next server */ }
+  }
+  return [];
+}
+
 /** Turn a map position into a county, sub-county, ward and village using OpenStreetMap (free, no key needed). */
-export async function reverseGeocode(lat: number, lng: number): Promise<{ county: string; sub: string; ward: string; village: string }> {
+export async function reverseGeocode(lat: number, lng: number): Promise<{ county: string; sub: string; ward: string; village: string; ok: boolean }> {
   let a: Record<string, string> = {};
+  let extra: string[] = [];
+  let ok = false;
   try {
     const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&addressdetails=1&accept-language=en&lat=${lat}&lon=${lng}`);
-    a = ((await r.json()).address ?? {}) as Record<string, string>;
-  } catch { /* the pin is still saved without place names */ }
+    if (r.ok) { a = ((await r.json()).address ?? {}) as Record<string, string>; ok = Object.keys(a).length > 0; }
+  } catch { /* try the second service below */ }
+  if (!ok || !(a.county || a.state)) {
+    try {
+      const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+      if (r.ok) {
+        const j = await r.json() as { principalSubdivision?: string; city?: string; locality?: string; localityInfo?: { administrative?: { name?: string }[] } };
+        a = { ...a, state: a.state || j.principalSubdivision || "", locality: a.locality || j.locality || "", city: a.city || j.city || "" };
+        extra = (j.localityInfo?.administrative ?? []).map((x) => String(x.name ?? "")).filter(Boolean);
+        ok = ok || !!(j.principalSubdivision || extra.length);
+      }
+    } catch { /* the pin is still saved without place names */ }
+  }
   await loadAreas();
-  const county = matchCounty(a.county ?? "") || matchCounty(a.state ?? "") || matchCounty(a.state_district ?? "");
-  const names = [a.suburb, a.neighbourhood, a.village, a.hamlet, a.town, a.city_district, a.municipality, a.city, a.locality, a.state_district].filter(Boolean) as string[];
+  extra = [...extra, ...(await boundaryNames(lat, lng))];
+  const county = matchCounty(a.county ?? "") || matchCounty(a.state ?? "") || matchCounty(a.state_district ?? "") || extra.map(matchCounty).find(Boolean) || "";
+  const names = [a.suburb, a.neighbourhood, a.village, a.hamlet, a.town, a.city_district, a.municipality, a.city, a.locality, a.state_district, ...extra].filter(Boolean) as string[];
   const found = resolveArea(county, names);
   const village = a.village || a.hamlet || a.suburb || a.neighbourhood || a.locality || "";
-  return { county: found.county || county, sub: found.sub, ward: found.ward, village: norm(village) === norm(found.ward) ? "" : village };
+  return { county: found.county || county, sub: found.sub, ward: found.ward, village: norm(village) === norm(found.ward) ? "" : village, ok };
 }
 
 /** Turn the phone's GPS position into county, sub-county, ward and village. */
-export async function whereAmI(): Promise<{ county: string; sub: string; ward: string; village: string; lat: number; lng: number }> {
+export async function whereAmI(): Promise<{ county: string; sub: string; ward: string; village: string; lat: number; lng: number; alt: number | null }> {
   const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
     if (!navigator.geolocation) { reject(new Error("This phone cannot share its location.")); return; }
     navigator.geolocation.getCurrentPosition(resolve, () => reject(new Error("Could not get the location. Allow location access and try again.")), { enableHighAccuracy: true, timeout: 15000 });
   });
   const { latitude: lat, longitude: lng } = pos.coords;
-  return { ...(await reverseGeocode(lat, lng)), lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5 };
+  const a = pos.coords.altitude;
+  return { ...(await reverseGeocode(lat, lng)), lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5, alt: a != null && Number.isFinite(a) ? Math.round(a) : null };
 }

@@ -69,6 +69,7 @@
 
 /* LIGHT MODE */
 :root {
+  color-scheme: light;
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
 
@@ -138,23 +139,27 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --primary-border: hsl(var(--primary));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --secondary-border: hsl(var(--secondary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --muted-border: hsl(var(--muted));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --accent-border: hsl(var(--accent));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --destructive-border: hsl(var(--destructive));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* DARK MODE (switched on by the theme engine, see components/ThemeProvider.tsx).
+   Soft off-white text on warm charcoal, never pure white on pure black, so it is easy on the eyes at night.
+   Contrast (WCAG AA needs 4.5:1): body text 15:1, secondary text 8.7:1, links 7.2:1, button text 7.5:1. */
 .dark {
+  color-scheme: dark;
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
 
@@ -314,7 +319,7 @@
   display: inline-block;
   position: relative;
   min-width: 0.02em;
-  background-image: linear-gradient(100deg, currentColor 0%, currentColor 34%, var(--hi, #fbbf24) 50%, currentColor 66%, currentColor 100%);
+  background-image: linear-gradient(100deg, currentColor 0%, currentColor 34%, var(--hi, #38bdf8) 50%, currentColor 66%, currentColor 100%);
   background-size: 300% 100%;
   background-repeat: repeat-x;
   -webkit-background-clip: text;
@@ -331,12 +336,10 @@
   .live-ch {
     background: none;
     -webkit-text-fill-color: currentColor;
-    animation: var(--in, fx-fade) 4.2s cubic-bezier(.2, .7, .2, 1) calc(var(--c, 0) * var(--st)) infinite both paused;
+    animation:
+      var(--in, fx-fade) 4.2s cubic-bezier(.2, .7, .2, 1) calc(var(--c, 0) * var(--st)) infinite both paused,
+      var(--idle, fx-float) var(--iddur, 2.4s) ease-in-out calc(1.4s + var(--c, 0) * 90ms) infinite alternate paused;
   }
-  /* small titles (menu links, card titles) stay perfectly still on phones: dozens of moving letters is what makes a phone stutter */
-  .live-sub .live-ch { animation: none !important; }
-  /* blurred glass panels over a playing video are very costly on phones, so they become solid-looking panels */
-  [class*="backdrop-blur"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }
 .live-ch[data-s] > .r { visibility: hidden; }
 .live-ch[data-s]::before { content: attr(data-s); position: absolute; inset: 0; text-align: center; white-space: pre; }
@@ -404,7 +407,7 @@ html[data-fx="elastic"] .live-t { --in: fx-elastic-in; --indur: .9s; --idle: fx-
 
 /* neon flicker */
 @keyframes fx-neon-in { 0.000% { opacity: .6; } 2.571% { opacity: 1; } 4.714% { opacity: .6; } 7.286% { opacity: 1; } 10.286% { opacity: .6; } 13.286% { opacity: 1; } 21.429% { opacity: 1; } 84% { opacity: 1; } 100% { opacity: .6; } }
-@keyframes fx-glow { from { filter: drop-shadow(0 0 0 transparent); } to { filter: drop-shadow(0 0 calc(var(--amp) * .22em) var(--hi, #fbbf24)); } }
+@keyframes fx-glow { from { filter: drop-shadow(0 0 0 transparent); } to { filter: drop-shadow(0 0 calc(var(--amp) * .22em) var(--hi, #38bdf8)); } }
 
 html[data-fx="neon"] .live-t { --in: fx-neon-in; --indur: .9s; --idle: fx-glow; --iddur: 1.6s; }
 
@@ -414,9 +417,9 @@ html[data-fx="scatter"] .live-t { --in: fx-scatter-in; --indur: 1s; --idle: fx-f
 
 /* key words and terms: fade in with a soft glow and a slow shine */
 @keyframes live-key-in { from { opacity: .2; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
-@keyframes live-key-glow { from { filter: drop-shadow(0 0 0 transparent); } to { filter: drop-shadow(0 0 .18em color-mix(in srgb, var(--hi, #fbbf24) 40%, transparent)); } }
+@keyframes live-key-glow { from { filter: drop-shadow(0 0 0 transparent); } to { filter: drop-shadow(0 0 .18em color-mix(in srgb, var(--hi, #38bdf8) 40%, transparent)); } }
 .live-key {
-  background-image: linear-gradient(100deg, currentColor 0%, currentColor 38%, var(--hi, #f59e0b) 50%, currentColor 62%, currentColor 100%);
+  background-image: linear-gradient(100deg, currentColor 0%, currentColor 38%, var(--hi, #0ea5e9) 50%, currentColor 62%, currentColor 100%);
   background-size: 300% 100%;
   background-repeat: repeat-x;
   -webkit-background-clip: text;
@@ -457,3 +460,27 @@ html.modal-open #root .live-ch,
 html.modal-open #root .live-key,
 html.modal-open #root .live-ticker-track,
 html.modal-open #root .live-dot { animation-play-state: paused !important; }
+
+/* Live hero buttons: a soft shine sweeps across, the main ones glow, and they lift when pressed. */
+@keyframes hb-sheen { 0% { transform: translateX(-130%) skewX(-20deg); } 55%, 100% { transform: translateX(260%) skewX(-20deg); } }
+@keyframes hb-glow { 0%, 100% { box-shadow: 0 0 0 0 var(--hb, rgba(56,189,248,.5)); } 50% { box-shadow: 0 0 0 7px rgba(255,255,255,0); } }
+.hb { position: relative; overflow: hidden; isolation: isolate; transition: transform .2s ease, filter .2s ease; }
+.hb::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 38%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); animation: hb-sheen 4.2s ease-in-out infinite; animation-delay: var(--hd, 0s); pointer-events: none; z-index: -1; }
+.hb:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.hb:active { transform: scale(.97); }
+.hb svg { transition: transform .25s ease; }
+.hb:hover svg { transform: translateX(2px) scale(1.12); }
+.hb-glow { animation: hb-glow 2.6s ease-out infinite; }
+.hb-quote { --hb: rgba(56,189,248,.55); background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important; color: #1e293b !important; box-shadow: 0 6px 18px -6px rgba(14,165,233,.7); }
+.hb-contract { background: linear-gradient(135deg, rgba(59,130,246,.55), rgba(30,64,175,.55)) !important; border: 1px solid rgba(147,197,253,.7) !important; color: #fff !important; backdrop-filter: blur(6px); }
+.hb-permit { --hb: rgba(52,211,153,.55); background: linear-gradient(135deg, #10b981, #0d9488) !important; border: 1px solid rgba(167,243,208,.7) !important; color: #fff !important; box-shadow: 0 6px 18px -6px rgba(16,185,129,.7); }
+.hb-call { background: rgba(255,255,255,.1) !important; border: 1.5px solid rgba(255,255,255,.6) !important; color: #fff !important; }
+@media (prefers-reduced-motion: reduce) { .hb::after, .hb-glow { animation: none; } .hb { transition: none; } }
+@keyframes hb-flip { 0% { transform: rotateY(90deg) scale(.8); opacity: 0; } 60% { transform: rotateY(-10deg) scale(1.05); opacity: 1; } 100% { transform: rotateY(0) scale(1); } }
+
+/* ID scanner: the red beam sweeps across the card and back, without stopping, while the ID is being read */
+@keyframes idbeam { 0% { transform: translateX(-100%); } 100% { transform: translateX(0%); } }
+.idbeam { animation: idbeam 1.5s cubic-bezier(.45,.05,.55,.95) infinite alternate; }
+@keyframes iddots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+.iddots::after { content: ""; animation: iddots 1.2s steps(1) infinite; display: inline-block; width: 1.2em; text-align: left; }
+@media (prefers-reduced-motion: reduce) { .idbeam { animation-duration: 3s; } }

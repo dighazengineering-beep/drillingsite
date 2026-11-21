@@ -29,7 +29,7 @@ export default function ProductGallery({ images, alt, fallback }: { images: stri
             <button aria-label="Next photo" onClick={() => go(1)} data-testid="button-next-photo" className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-white/90 shadow border border-border flex items-center justify-center hover:bg-white active:scale-95 transition">
               <ChevronRight className="h-5 w-5 text-primary" />
             </button>
-            <span className="absolute bottom-2 right-3 text-[11px] font-medium bg-[hsl(160_40%_9%)]/70 text-white rounded-full px-2 py-0.5">{i + 1} / {n}</span>
+            <span className="absolute bottom-2 right-3 text-[11px] font-medium bg-slate-900/70 text-white rounded-full px-2 py-0.5">{i + 1} / {n}</span>
           </>
         )}
       </div>

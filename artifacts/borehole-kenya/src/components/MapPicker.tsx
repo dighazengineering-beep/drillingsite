@@ -8,7 +8,8 @@ import "leaflet/dist/leaflet.css";
  * Full-screen map to pick where the work was done. Drag the map so the pin sits on the spot, or jump to your own location,
  * or search a place name. Free OpenStreetMap map, no key needed.
  */
-export default function MapPicker({ initial, query, onClose, onConfirm }: {
+export default function MapPicker({ initial, query, satellite, onClose, onConfirm }: {
+  satellite?: boolean;
   initial: { lat: number; lng: number } | null;
   query: string;
   onClose: () => void;
@@ -35,7 +36,7 @@ export default function MapPicker({ initial, query, onClose, onConfirm }: {
   useEffect(() => {
     if (!box.current) return;
     const m = L.map(box.current, { zoomControl: true, attributionControl: true }).setView(initial ? [initial.lat, initial.lng] : [0.4, 37.9], initial ? 16 : 6);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(m);
+    (satellite ? L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagery © Esri" }) : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" })).addTo(m);
     map.current = m;
     const t = window.setTimeout(() => m.invalidateSize(), 120);
     if (!initial && query.trim()) void go(query);

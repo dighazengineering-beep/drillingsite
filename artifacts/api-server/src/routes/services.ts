@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, servicesTable } from "@workspace/db";
 import { eq, ilike } from "drizzle-orm";
 import { GetServiceParams, ListServicesQueryParams } from "@workspace/api-zod";
+import { surveyFirst } from "../lib/order";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get("/services", async (req, res) => {
     const featured = typeof params.featured === "boolean"
       ? results.filter(s => s.featured === params.featured)
       : results;
-    res.json(featured.map(serializeService));
+    res.json(surveyFirst(featured).map(serializeService));
     return;
   }
 
@@ -27,7 +28,7 @@ router.get("/services", async (req, res) => {
   const filtered = typeof params.featured === "boolean"
     ? results.filter(s => s.featured === params.featured)
     : results;
-  res.json(filtered.map(serializeService));
+  res.json(surveyFirst(filtered).map(serializeService));
 });
 
 router.get("/services/:id", async (req, res) => {

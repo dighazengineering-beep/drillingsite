@@ -1,4 +1,5 @@
 import express, { Router } from "express";
+import { isAdminKey as isAdmin } from "../lib/adminAuth";
 import crypto from "node:crypto";
 import { pool } from "@workspace/db";
 import { memberFrom } from "./members";
@@ -32,7 +33,7 @@ function ensureTable() {
     ALTER TABLE feed_videos ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
     ALTER TABLE feed_videos ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
     ALTER TABLE feed_videos ADD COLUMN IF NOT EXISTS member_id TEXT;
-    -- People (besides the admin) who may post videos. The list starts empty; the admin adds posters in /admin.
+    -- People (besides the admin) who may post videos. The first one is added only when the table is first created.
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'video_uploaders') THEN
         CREATE TABLE video_uploaders (
@@ -40,16 +41,13 @@ function ensureTable() {
           approved BOOLEAN NOT NULL DEFAULT FALSE,
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
+        INSERT INTO video_uploaders (email) VALUES ('190lisam@gmail.com');
       END IF;
     END $$;
   `).catch((e) => { ready = null; throw e; });
   return ready;
 }
 
-const isAdmin = (key: unknown) => {
-  const k = process.env.ADMIN_KEY;
-  return !!k && typeof key === "string" && key === k;
-};
 // Who is posting: the admin (password), or a signed-in member whose email is on the poster list.
 // A listed member counts once Google has confirmed the email, or once the admin has pressed Approve for it.
 async function actor(req: express.Request): Promise<{ admin: boolean; member: { id: number; email: string } | null } | null> {
@@ -59,7 +57,7 @@ async function actor(req: express.Request): Promise<{ admin: boolean; member: { 
   await ensureTable();
   const r = await pool.query("SELECT approved FROM video_uploaders WHERE email = $1", [String(member.email).toLowerCase()]);
   if (!r.rows[0]) return null;
-  return member.google_id || r.rows[0].approved ? { admin: false, member } : null;
+  return (member.google_id && !member.pass_hash) || r.rows[0].approved ? { admin: false, member } : null;
 }
 const NOT_ALLOWED = "Only approved video posters can do this.";
 const numIn = (v: unknown, lo: number, hi: number) => {
@@ -72,23 +70,21 @@ const lng = (v: unknown) => numIn(v, 33.5, 42);
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max) || null;
 const COLS = `id, url, poster, title, location, village, lat, lng, source, category, created_at AS "createdAt"`;
 
-// Pasted settings often carry a stray space, new line or quote marks, which makes Cloudinary reject the upload signature. Clean them.
-const envClean = (v: string | undefined) => v?.trim().replace(/^["'`]+|["'`]+$/g, "").trim();
 const cloud = () => ({
-  name: envClean(process.env.CLOUDINARY_CLOUD_NAME),
-  key: envClean(process.env.CLOUDINARY_API_KEY),
-  secret: envClean(process.env.CLOUDINARY_API_SECRET),
+  name: process.env.CLOUDINARY_CLOUD_NAME,
+  key: process.env.CLOUDINARY_API_KEY,
+  secret: process.env.CLOUDINARY_API_SECRET,
 });
 const gh = {
   get token() { return process.env.GITHUB_TOKEN; },
-  get repo() { return process.env.GITHUB_REPO || ""; },
+  get repo() { return process.env.GITHUB_REPO || "dighazengineering-beep/drillingsite"; },
   get branch() { return process.env.GITHUB_BRANCH || "main"; },
 };
 const GH_DIR = "artifacts/borehole-kenya/public/videos/uploads";
 const ghFetch = (path: string, init: RequestInit = {}) =>
   fetch(`https://api.github.com/repos/${gh.repo}/contents/${path}`, {
     ...init,
-    headers: { Authorization: `Bearer ${gh.token}`, Accept: "application/vnd.github+json", "User-Agent": "dighaz-engineering-website", ...(init.headers ?? {}) },
+    headers: { Authorization: `Bearer ${gh.token}`, Accept: "application/vnd.github+json", "User-Agent": "dighaz-engineering", ...(init.headers ?? {}) },
   });
 const CATS = ["boreholes", "drilling", "solar", "pump", "inspection", "survey", "purification"];
 const cat = (v: unknown) => (typeof v === "string" && CATS.includes(v) ? v : "boreholes");
@@ -115,7 +111,7 @@ router.get("/feed-videos/can-upload", async (req, res) => {
     if (!member) { res.json({ canUpload: false, listed: false }); return; }
     const r = await pool.query("SELECT approved FROM video_uploaders WHERE email = $1", [String(member.email).toLowerCase()]);
     const listed = !!r.rows[0];
-    const canUpload = listed && !!(member.google_id || r.rows[0].approved);
+    const canUpload = listed && !!((member.google_id && !member.pass_hash) || r.rows[0].approved);
     res.json({ canUpload, listed, needsGoogle: listed && !canUpload });
   } catch { res.json({ canUpload: false, listed: false }); }
 });

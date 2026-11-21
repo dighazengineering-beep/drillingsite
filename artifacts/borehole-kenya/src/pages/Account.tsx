@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { LiveTitle } from "@/components/LiveTitle";
 import { useLocation } from "wouter";
-import { Copy, LogOut, Share2, Plus, Check, MessageCircle, ClipboardList, ShoppingBag, Coins, BadgeCheck } from "lucide-react";
+import { Copy, LogOut, Share2, Plus, Check, MessageCircle, ClipboardList, ShoppingBag, Coins, BadgeCheck, HardHat } from "lucide-react";
 import { Link } from "wouter";
 import { whatsappLink } from "@/lib/utils";
 import { IMAGES, pageBackdrop } from "@/lib/images";
 import { memberApi, memberToken, signOutMember, kes, STATUS_LABEL, type Member, type Referral, type Enquiry } from "@/lib/member";
+import { PhoneField } from "@/components/PhoneField";
 
 interface Me {
   member: Member;
@@ -94,8 +95,9 @@ export default function Account() {
         {/* Client view: everyone sees this */}
         <section className={card}>
           <h2 className="font-bold text-foreground"><LiveTitle text="What do you need?" hi="#0ea5e9" level="sub" /></h2>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Link href="/contact" className="flex items-center gap-2 rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground"><ClipboardList className="h-4 w-4" /> Get a free quote</Link>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Link href="/quote" className="flex items-center gap-2 rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground"><ClipboardList className="h-4 w-4" /> Get a Quote</Link>
+            <Link href="/my-jobs" className="flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-3 py-3 text-sm font-semibold text-primary" data-testid="link-my-jobs"><HardHat className="h-4 w-4" /> Track my job</Link>
             <Link href="/products" className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-sm font-semibold text-foreground"><ShoppingBag className="h-4 w-4 text-primary" /> Browse products</Link>
             <a href={whatsappLink(`Hello, I am ${member.name}. I need help with a borehole project.`)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-sm font-semibold text-foreground"><MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp us</a>
           </div>
@@ -159,7 +161,7 @@ export default function Account() {
           {adding && (
             <form onSubmit={add} className="mb-4 space-y-2 rounded-xl border border-border bg-muted/40 p-3">
               <input className={input} placeholder="Client's name" value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} required />
-              <input className={input} type="tel" placeholder="Client's phone" value={f.clientPhone} onChange={(e) => setF({ ...f, clientPhone: e.target.value })} required />
+              <PhoneField className={input} value={f.clientPhone} onChange={(v) => setF({ ...f, clientPhone: v })} />
               <select className={input} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
                 <option value="service">A service (survey, drilling, pump or solar installation)</option>
                 <option value="product">A product (pump, tank, solar panel…)</option>

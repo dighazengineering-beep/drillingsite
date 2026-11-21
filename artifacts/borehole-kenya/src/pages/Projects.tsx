@@ -92,10 +92,23 @@ export default function Projects() {
     <div>
       <PageBanner
         image={IMAGES.rig}
-        eyebrow="Our Work"
+        eyebrow="Our Track Record"
         title="Completed Projects"
         description="Boreholes and water systems delivered for homes, farms and institutions across Kenya."
       >
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "Projects", value: "2,400+" },
+            { label: "Counties", value: "47" },
+            { label: "Years", value: "15+" },
+            { label: "Success", value: "98%" },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg bg-white/10 border border-white/15 px-2 py-2.5 text-center">
+              <div className="text-lg font-extrabold text-sky-300 leading-none mb-1">{s.value}</div>
+              <div className="text-[10px] uppercase tracking-wider text-white/65">{s.label}</div>
+            </div>
+          ))}
+        </div>
       </PageBanner>
 
       <div style={pageBackdrop(IMAGES.backdropTruck, "center 50%")}>
@@ -168,7 +181,7 @@ export default function Projects() {
                 <Link key={project.id} href={`/projects/${project.id}`}>
                   <Card className="h-full group hover:shadow-md transition-all cursor-pointer overflow-hidden" data-testid={`card-project-${project.id}`}>
                     <CardContent className="p-0 flex flex-col h-full">
-                      <div className="relative aspect-[3/2] overflow-hidden bg-[hsl(160_52%_14%)]">
+                      <div className="relative aspect-[3/2] overflow-hidden bg-[hsl(215_70%_14%)]">
                         {(() => {
                           const photo = projectPhoto(project.title, project.serviceType, project.imageUrl);
                           return photo ? (
@@ -180,7 +193,7 @@ export default function Projects() {
                               style={{ objectPosition: photo.pos }}
                             />
                           ) : (
-                            <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, hsl(160 52% 12%) 0%, hsl(155 56% 24%) 60%, hsl(172 58% 30%) 100%)" }}>
+                            <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, hsl(160 52% 12%) 0%, hsl(212 75% 24%) 60%, hsl(200 70% 32%) 100%)" }}>
                               <Droplets className="absolute right-3 top-3 h-14 w-14 text-white/10" />
                             </div>
                           );
@@ -207,7 +220,7 @@ export default function Projects() {
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
                           <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{project.town}, {project.county}{/^(Kenya|South Sudan)$/.test(project.county) ? "" : " County"}</span>
+                          <span className="truncate">{project.town}, {project.county} County</span>
                         </div>
                         <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 flex-1 mb-2">
                           {project.description}
@@ -219,7 +232,7 @@ export default function Projects() {
                           {project.yield && (
                             <span className="flex items-center gap-1"><Droplets className="h-3 w-3" /> {project.yield}</span>
                           )}
-                          {project.completionYear > 0 && <span className="flex items-center gap-1 ml-auto"><Calendar className="h-3 w-3" /> {project.completionYear}</span>}
+                          <span className="flex items-center gap-1 ml-auto"><Calendar className="h-3 w-3" /> {project.completionYear}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -242,7 +255,7 @@ export default function Projects() {
         <div className="mt-4 rounded-xl bg-card/95 border border-primary/20 shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-sm font-semibold text-foreground"><LiveTitle level="sub" text="Start your own water project" hi="#0ea5e9" /></span>
           <div className="flex gap-2">
-            <Button asChild size="sm" className="h-8 text-xs"><Link href="/contact">Request a Free Quote</Link></Button>
+            <Button asChild size="sm" className="h-8 text-xs"><Link href="/quote">Get a Quote</Link></Button>
             <a href="tel:+254719117660">
               <Button size="sm" variant="outline" className="h-8 text-xs">Call +254 719 117 660</Button>
             </a>

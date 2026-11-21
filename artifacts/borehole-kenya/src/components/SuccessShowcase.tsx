@@ -81,12 +81,12 @@ function Card({ item }: { item: Item }) {
       onBlur={stop}
       data-testid="showcase-card"
       aria-label={`Watch: ${item.title}`}
-      className="group relative block aspect-[9/14] w-[168px] shrink-0 snap-start overflow-hidden rounded-2xl bg-[hsl(160_40%_9%)] shadow-[0_12px_30px_-12px_rgba(0,0,0,.7)] ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:ring-sky-300/60 sm:w-[200px]"
+      className="group relative block aspect-[9/14] w-[168px] shrink-0 snap-start overflow-hidden rounded-2xl bg-slate-900 shadow-[0_12px_30px_-12px_rgba(0,0,0,.7)] ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:ring-sky-300/60 sm:w-[200px]"
     >
       {item.poster ? (
         <img src={item.poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
       ) : (
-        <div className="absolute inset-0" style={{ background: "linear-gradient(160deg, hsl(155 56% 22%), hsl(160 52% 9%))" }} />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(160deg, hsl(212 75% 22%), hsl(160 52% 9%))" }} />
       )}
       <video
         ref={vid}
@@ -122,7 +122,7 @@ export default function SuccessShowcase() {
   return (
     <section className="px-4 py-8 sm:px-6" aria-labelledby="showcase-title" data-testid="success-showcase">
       <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl ring-1 ring-white/10 shadow-[0_30px_70px_-30px_rgba(0,0,0,.8)]"
-        style={{ background: "linear-gradient(135deg, hsl(160 52% 7% / .86) 0%, hsl(158 54% 12% / .80) 55%, hsl(155 56% 17% / .74) 100%)" }}>
+        style={{ background: "linear-gradient(135deg, hsl(160 52% 7% / .86) 0%, hsl(214 72% 12% / .80) 55%, hsl(212 75% 17% / .74) 100%)" }}>
         <div className="p-5 sm:p-8">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="max-w-xl">
@@ -153,8 +153,8 @@ export default function SuccessShowcase() {
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
             <p className="text-sm font-medium text-white/85">Want your borehole to be the next success story?</p>
             <div className="flex flex-wrap gap-2.5">
-              <Link href="/contact" className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow transition hover:bg-white/90">
-                Get a free quote <ArrowRight className="h-4 w-4" />
+              <Link href="/quote" className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow transition hover:bg-white/90">
+                Get a Quote <ArrowRight className="h-4 w-4" />
               </Link>
               <a href={whatsappLink("Hello, I saw your successful boreholes and would like a free quote.")} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#20bd5a]">

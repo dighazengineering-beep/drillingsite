@@ -1,14 +1,16 @@
-import { db, productsTable, servicesTable, projectsTable } from "@workspace/db";
+import { db, productsTable, servicesTable, projectsTable, ensureCatalogTables } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { NEW_PROJECTS, PROJECT_UPDATES } from "./projectsData";
 import { MORE_PROJECTS } from "./projectsMore";
 import { PROJECT_STORIES, PROJECT_RENAMES } from "./projectStories";
 import { logger } from "./logger";
 import { deletedSlugs } from "./tombstones";
+import { CORE_SERVICES } from "./coreServices";
 
 // Idempotent catalog corrections applied on startup (runs against the live database).
 export async function applyCatalogFixes() {
   try {
+    await ensureCatalogTables();
     await db
       .update(productsTable)
       .set({
@@ -142,6 +144,18 @@ async function applyProjectFixes() {
       const patch: Partial<typeof row> = { ...s };
       if (PROJECT_RENAMES[slug]) patch.title = PROJECT_RENAMES[slug];
       await db.update(projectsTable).set(patch).where(eq(projectsTable.slug, slug));
+    }
+    // the main services (survey, full drilling, test pumping, pump installation): added back when missing, e.g. on a new empty database
+    {
+      const have = await db.select({ slug: servicesTable.slug, name: servicesTable.name }).from(servicesTable);
+      const gone = await deletedSlugs("service");
+      const NAME_TEST: Record<string, RegExp> = { "borehole-drilling": /drill/i, "test-pumping": /test.?pump/i, "pump-installation": /pump.*install|install.*pump/i, "hydrogeological-surveys": /survey/i };
+      for (const c of CORE_SERVICES) {
+        const same = have.some((r) => r.slug === c.slug || (NAME_TEST[c.slug]!.test(r.name) && !/flush|open|report|inspect/i.test(r.name)));
+        if (same || gone.has(c.slug)) continue;
+        await db.insert(servicesTable).values({ ...c, imageUrl: null, featured: true, coverageAreas: [] });
+        logger.info({ slug: c.slug }, "main service added back");
+      }
     }
   } catch (err) {
     logger.warn({ err }, "Project fixes failed");

@@ -1,53 +1,59 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Bell, Wallet, Sparkles, PlayCircle, Wrench, X } from "lucide-react";
+import { Bell, Wallet, Sparkles, PlayCircle, Wrench, X, Radio, BellRing } from "lucide-react";
+import { ago as agoText } from "@/lib/jobs";
 import { API, memberApi, memberToken } from "@/lib/member";
 
-interface Note { id: string; title: string; body: string; link: string; at?: string; kind: "pay" | "info" }
+interface Note { id: string; title: string; body: string; link: string; at?: string; kind: "pay" | "info"; important?: boolean }
 
 const ls = {
   get: (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } },
   set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
-export const rememberPhone = (p: string) => { if (p.replace(/\D/g, "").length >= 9) ls.set("dighaz_phone", p); };
+export const rememberPhone = (p: string) => { if (p.replace(/\D/g, "").length >= 9) ls.set("site_phone", p); };
 
 // The server gives the payer a key when they pay. It is needed to read that phone's notifications, balances and receipts.
 const tail = (p: string) => p.replace(/\D/g, "").slice(-9);
-const keyMap = (): Record<string, string> => { try { return JSON.parse(ls.get("dighaz_keys") || "{}"); } catch { return {}; } };
-export const rememberKey = (phone: string, key?: string) => { if (key) ls.set("dighaz_keys", JSON.stringify({ ...keyMap(), [tail(phone)]: key })); };
+const keyMap = (): Record<string, string> => { try { return JSON.parse(ls.get("site_keys") || "{}"); } catch { return {}; } };
+export const rememberKey = (phone: string, key?: string) => { if (key) ls.set("site_keys", JSON.stringify({ ...keyMap(), [tail(phone)]: key })); };
 export const keyFor = (phone: string) => keyMap()[tail(phone)] ?? "";
 
 const WELCOME: Note[] = [
-  { id: "w1", kind: "info", title: "Welcome to Dighaz Engineering", body: "Borehole drilling, surveys, pumps, solar and water treatment from one team.", link: "/services" },
+  { id: "w1", kind: "info", title: "Welcome to Dighaz Engineering Limited", body: "Borehole drilling, surveys, pumps, solar and water treatment from one team.", link: "/services" },
   { id: "w2", kind: "info", title: "See our successful boreholes", body: "Watch real boreholes our crews have completed, with videos from site.", link: "/feed" },
-  { id: "w3", kind: "info", title: "Check what we offer", body: "Surveys, test pumping, pump installation and inspection. Get a free quote today.", link: "/contact" },
+  { id: "w3", kind: "info", title: "Check what we offer", body: "Surveys, test pumping, pump installation and inspection. Get a quote today.", link: "/quote" },
 ];
 
 /** Bell in the header. Shows payment updates (received, balance left, bank confirmed) and welcome messages. */
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [phone, setPhone] = useState(() => ls.get("dighaz_phone"));
+  const [phone, setPhone] = useState(() => ls.get("site_phone"));
   const [pay, setPay] = useState<Note[]>([]);
-  const [seen, setSeen] = useState(() => new Set(ls.get("dighaz_seen").split(",").filter(Boolean)));
+  const [jobs, setJobs] = useState<{ item: string; stage: number; stages: string[]; note: string; step?: string; eta?: string; updatedAt?: string | null; liveUrl?: string; recordingUrl?: string }[]>([]);
+  const [seen, setSeen] = useState(() => new Set(ls.get("site_seen").split(",").filter(Boolean)));
 
   const load = useCallback(async () => {
-    let ph = ls.get("dighaz_phone");
+    let ph = ls.get("site_phone");
     if (!ph && memberToken()) {
-      try { ph = (await memberApi<{ member: { phone: string } }>("/me")).member.phone || ""; if (ph) ls.set("dighaz_phone", ph); } catch { /* not signed in */ }
+      try { ph = (await memberApi<{ member: { phone: string } }>("/me")).member.phone || ""; if (ph) ls.set("site_phone", ph); } catch { /* not signed in */ }
     }
     setPhone(ph);
     if (!ph) return;
     try {
       const d = await fetch(`${API}/api/payments/notifications?phone=${encodeURIComponent(ph)}&key=${encodeURIComponent(keyFor(ph))}`).then((r) => r.json());
-      setPay((Array.isArray(d) ? d : []).map((n: any) => ({ id: `p${n.id}`, kind: "pay" as const, title: n.title, body: n.body, link: n.link, at: n.createdAt })));
+      setPay((Array.isArray(d) ? d : []).map((n: any) => ({ id: `p${n.id}`, kind: "pay" as const, title: n.title, body: n.body, link: n.link, at: n.createdAt, important: !!n.important })));
+    } catch { /* offline */ }
+    try {
+      const j = await fetch(`${API}/api/payments/jobs?phone=${encodeURIComponent(ph)}&key=${encodeURIComponent(keyFor(ph))}`).then((r) => r.json());
+      setJobs(Array.isArray(j) ? j : []);
     } catch { /* offline */ }
   }, []);
 
   useEffect(() => { load(); const t = window.setInterval(load, 20000); return () => window.clearInterval(t); }, [load]);
   useEffect(() => {
     const h = () => { setTimeout(load, 800); };
-    window.addEventListener("dighaz:phone", h);
-    return () => window.removeEventListener("dighaz:phone", h);
+    window.addEventListener("site:phone", h);
+    return () => window.removeEventListener("site:phone", h);
   }, [load]);
 
   const all = [...pay, ...WELCOME];
@@ -55,7 +61,7 @@ export default function NotificationBell() {
   const toggle = () => {
     const next = !open;
     setOpen(next);
-    if (!next) { const s = new Set([...seen, ...all.map((n) => n.id)]); setSeen(s); ls.set("dighaz_seen", [...s].slice(-200).join(",")); }
+    if (!next) { const s = new Set([...seen, ...all.map((n) => n.id)]); setSeen(s); ls.set("site_seen", [...s].slice(-200).join(",")); }
   };
   const close = () => { if (open) toggle(); };
   const ago = (iso?: string) => {
@@ -79,12 +85,41 @@ export default function NotificationBell() {
               <p className="text-sm font-extrabold text-foreground">Notifications</p>
               <button onClick={close} aria-label="Close" className="rounded-full p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
             </div>
+            {jobs.length > 0 && (
+              <div className="space-y-3 border-b border-border bg-primary/5 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Your jobs</p>
+                  <Link href="/my-jobs" onClick={close} className="text-[11px] font-bold text-primary" data-testid="link-track-job">Track my job →</Link>
+                </div>
+                {jobs.map((j) => (
+                  <div key={j.item}>
+                    <p className="text-[13px] font-bold leading-tight text-foreground">{j.item}</p>
+                    <div className="mt-1.5 flex gap-1">
+                      {j.stages.map((s, i) => <span key={s} title={s} className={`h-1.5 flex-1 rounded-full ${i <= j.stage ? "bg-primary" : "bg-muted-foreground/20"}`} />)}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-primary">{j.step ?? j.stages[j.stage]}{j.stage === j.stages.length - 1 ? " ✓" : ""}{j.updatedAt && <span className="font-normal text-muted-foreground"> · {agoText(j.updatedAt)}</span>}</p>
+                    {j.eta && <p className="text-xs font-semibold text-sky-700">{j.eta}</p>}
+                    {j.note && <p className="text-xs text-muted-foreground">{j.note}</p>}
+                    {j.liveUrl && (
+                      <a href={j.liveUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-red-700">
+                        <Radio className="h-3.5 w-3.5 animate-pulse" /> Watch live
+                      </a>
+                    )}
+                    {!j.liveUrl && j.recordingUrl && (
+                      <a href={j.recordingUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20">
+                        <PlayCircle className="h-3.5 w-3.5" /> Watch recording
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="divide-y divide-border">
               {all.map((n) => {
-                const Icon = n.kind === "pay" ? Wallet : n.id === "w2" ? PlayCircle : n.id === "w3" ? Wrench : Sparkles;
+                const Icon = n.important ? BellRing : n.kind === "pay" ? Wallet : n.id === "w2" ? PlayCircle : n.id === "w3" ? Wrench : Sparkles;
                 return (
-                  <Link key={n.id} href={n.link || "/"} onClick={close} className="flex gap-3 px-4 py-3 transition hover:bg-muted/60">
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${n.kind === "pay" ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"}`}><Icon className="h-[18px] w-[18px]" /></span>
+                  <Link key={n.id} href={n.link || "/"} onClick={close} className={`flex gap-3 px-4 py-3 transition hover:bg-muted/60 ${n.important ? "border-l-4 border-sky-400 bg-sky-50/70" : ""}`}>
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${n.important ? "bg-sky-200 text-sky-800" : n.kind === "pay" ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"}`}><Icon className="h-[18px] w-[18px]" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-start justify-between gap-2">
                         <span className="text-[13px] font-bold leading-tight text-foreground">{n.title}</span>

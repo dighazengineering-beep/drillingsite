@@ -201,7 +201,7 @@ const PRODUCTS = [
   },
 ];
 
-const SERVICES = [
+export const SERVICES = [
   {
     slug: "borehole-drilling",
     name: "Borehole Drilling",

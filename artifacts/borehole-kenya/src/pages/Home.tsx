@@ -5,7 +5,7 @@ import SuccessShowcase from "@/components/SuccessShowcase";
 import FloatingReel from "@/components/FloatingReel";
 import InstallApp from "@/components/InstallApp";
 import { Link } from "wouter";
-import { ArrowRight, UserRound, CheckCircle, Phone, MessageCircle, Radar, Drill, Gauge, Sun, FlaskConical, ScanSearch } from "lucide-react";
+import { ArrowRight, UserRound, CheckCircle, Phone, MessageCircle, Radar, Drill, Gauge, Sun, FlaskConical, ScanSearch, FileSignature, ShieldCheck, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { whatsappLink, KENYA_COUNTIES } from "@/lib/utils";
 import { IMAGES, imagePosition, pageBackdrop, photoLayer } from "@/lib/images";
@@ -31,7 +31,7 @@ const tiles = [
 function QuickQuote() {
   const [name, setName] = useState("");
   const [county, setCounty] = useState("");
-  const [service, setService] = useState("Borehole Drilling");
+  const [service, setService] = useState("Hydrogeological Survey");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +56,7 @@ function QuickQuote() {
           {KENYA_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <select className={`${field} [&>option]:text-foreground`} value={service} onChange={(e) => setService(e.target.value)} aria-label="Service needed">
-          {["Borehole Drilling", "Hydrogeological Survey", "Pump Installation", "Solar Water System", "Borehole Repair"].map((o) => <option key={o}>{o}</option>)}
+          {["Hydrogeological Survey", "Borehole Drilling", "Pump Installation", "Solar Water System", "Borehole Repair"].map((o) => <option key={o}>{o}</option>)}
         </select>
       </div>
       <button
@@ -89,7 +89,7 @@ export default function Home() {
       className="relative min-h-[calc(100dvh-64px)] pt-[64px] pb-12 text-white flex items-center"
       style={{ background: `${photoLayer(IMAGES.rig)} center 60% / cover` }}
     >
-      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(90deg, hsl(160 52% 9% / .93) 0%, hsl(158 54% 14% / .80) 45%, hsl(155 56% 20% / .35) 100%)" }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(90deg, hsl(160 52% 9% / .93) 0%, hsl(214 72% 14% / .80) 45%, hsl(212 75% 20% / .35) 100%)" }} />
       {liveTitle && (
         <div className="absolute bottom-11 left-5 z-10 flex max-w-[calc(100%-2.5rem)] items-center gap-2 rounded-full bg-black/45 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/15 sm:left-8" data-testid="live-now">
           <span className="live-dot h-2 w-2 shrink-0 rounded-full bg-red-500" />
@@ -107,20 +107,30 @@ export default function Home() {
           </p>
 
           <div className="flex flex-wrap gap-3 mb-5">
-            <Button asChild className="bg-sky-400 text-slate-900 hover:bg-sky-300 font-semibold" data-testid="button-hero-quote">
-              <Link href="/contact">Get Free Quote <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            <Button asChild className="hb hb-glow hb-quote font-semibold" data-testid="button-hero-quote">
+              <Link href="/quote">Get a Quote <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
-            <Button asChild variant="outline" className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white">
-              <a href="tel:+254719117660"><Phone className="mr-2 h-4 w-4" /> Call</a>
+            <Button asChild variant="outline" className="hb hb-contract font-semibold" style={{ ["--hd" as string]: "0.7s" }} data-testid="button-hero-contract">
+              <Link href="/contract"><FileSignature className="mr-2 h-4 w-4" /> Contract</Link>
             </Button>
-            <Button asChild variant="outline" className="border-white/25 bg-white/10 text-white shadow-sm hover:bg-white/20 hover:text-white" data-testid="button-hero-login">
-              <Link href={memberToken() ? "/account" : "/join?mode=login"}><UserRound className="mr-2 h-4 w-4" /> {memberToken() ? "My account" : "Log in"}</Link>
+            <span className="-mt-3 h-0 basis-full sm:hidden" aria-hidden="true" />
+            <div className="flex basis-full flex-nowrap gap-2 sm:contents">
+              <Button asChild variant="outline" className="hb hb-glow hb-permit shrink-0 px-3 font-semibold sm:px-4" style={{ ["--hd" as string]: "1.4s" }} data-testid="button-hero-permits">
+                <Link href="/permits"><ShieldCheck className="mr-1.5 h-4 w-4" /> Permits</Link>
+              </Button>
+              <Button asChild variant="outline" className="hb hb-call shrink-0 px-3 font-semibold sm:px-4" style={{ ["--hd" as string]: "2.1s" }}>
+                <a href="tel:+254719117660"><Phone className="mr-1.5 h-4 w-4" /> Call</a>
+              </Button>
+              <InstallApp variant="hero" />
+            </div>
+            <span className="-mt-3 h-0 basis-full sm:hidden" aria-hidden="true" />
+            <Button asChild variant="outline" className="hb hb-glow hb-permit font-semibold" style={{ ["--hd" as string]: "2.8s" }} data-testid="button-hero-report">
+              <Link href="/report"><FileText className="mr-2 h-4 w-4" /> Get a Survey Report</Link>
             </Button>
-            <InstallApp variant="hero" />
           </div>
 
           <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs sm:text-sm text-white/80 mb-5">
-            {["Free site visit", "Written quotes", "Across Kenya"].map((t) => (
+            {["Written quotes", "All 47 counties", "Timely delivery"].map((t) => (
               <li key={t} className="flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5 text-emerald-400" />{t}</li>
             ))}
           </ul>

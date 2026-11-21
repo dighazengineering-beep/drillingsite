@@ -1,10 +1,12 @@
+/** Link to a document the server builds (quote, contract, receipt): on the live site it stays on our own domain (the site passes /api to the server). Always a full address, never a short path: a copied short path becomes a broken link. */
+export const docUrl = (path: string) => (typeof location !== "undefined" && !/^(localhost|127\.)/.test(location.hostname) ? `${location.origin}${path}` : `${API}${path}`);   // a FULL address (https://…), so it still works when copied or shared on WhatsApp
 export const API = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
 const store = {
   get: (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } },
   set: (k: string, v: string) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* ignore */ } },
 };
 
-export interface Member { id: number; name: string; email: string; phone: string; code: string; affiliate: boolean }
+export interface Member { id: number; name: string; email: string; phone: string; code: string; affiliate: boolean; admin?: boolean }
 export interface Enquiry { id: number; type: string; message: string; county: string | null; createdAt: string }
 export interface Referral {
   id: number; clientName: string; clientPhone: string; kind: "service" | "product"; need: string; source: string;
@@ -17,21 +19,7 @@ const TOKEN = "kws_member";
 const REF = "kws_ref";
 
 export const memberToken = () => store.get(TOKEN);
-export const setMemberToken = (t: string) => { store.set(TOKEN, t); if (t) void claimAdmin(); };
-
-/** A company admin (see ADMIN_EMAILS on the server) who signs in with Google gets the admin tools without typing the password. */
-export async function claimAdmin(): Promise<string> {
-  const have = store.get("kws_admin");
-  if (have) return have;
-  const t = memberToken();
-  if (!t) return "";
-  try {
-    const r = await fetch(`${API}/api/members/admin-key`, { headers: { Authorization: `Bearer ${t}` } });
-    const d = await r.json();
-    if (d?.key) { store.set("kws_admin", d.key); return d.key; }
-  } catch { /* ignore */ }
-  return "";
-}
+export const setMemberToken = (t: string) => store.set(TOKEN, t);
 export const signOutMember = () => store.set(TOKEN, "");
 
 /** Remember a referral code from a link like /?ref=KWS-AB12C so it can be credited when the visitor sends an enquiry. */

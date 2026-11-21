@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { isAdminKey as isAdmin } from "../lib/adminAuth";
 import { pool } from "@workspace/db";
 import { memberFrom } from "./members";
 
@@ -29,11 +30,6 @@ function ensureTable() {
   return ready;
 }
 
-// Admin = anyone who sends the ADMIN_KEY set on the server. If ADMIN_KEY is not set, nobody is admin.
-const isAdmin = (key: unknown) => {
-  const k = process.env.ADMIN_KEY;
-  return !!k && typeof key === "string" && key === k;
-};
 
 // Simple per-IP limit: 6 comments per minute.
 const hits = new Map<string, number[]>();

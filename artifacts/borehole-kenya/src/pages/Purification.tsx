@@ -102,8 +102,9 @@ export default function Purification() {
             </section>
 
             <section id="quote" className="lg:col-span-2 rounded-2xl bg-card/95 shadow-xl p-4 sm:p-5 scroll-mt-24">
-              <h2 className="text-base font-bold text-foreground"><LiveTitle text="Request a quote" hi="#0ea5e9" level="sub" /></h2>
-              <p className="text-xs text-muted-foreground mb-3">Free advice. Quotes are matched to your water test.</p>
+              <h2 className="text-base font-bold text-foreground"><LiveTitle text="Get your quote" hi="#0ea5e9" level="sub" /></h2>
+              <p className="text-xs text-muted-foreground mb-3">Instant quote for a system, or ask us on WhatsApp if you are not sure what you need.</p>
+              <Button asChild className="w-full mb-3"><Link href="/quote">Get an Instant Quote</Link></Button>
               <form onSubmit={submit} className="space-y-2.5" data-testid="form-purification-quote">
                 <input className={field} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
                 <select className={field} value={county} onChange={(e) => setCounty(e.target.value)}>

@@ -1,9 +1,10 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { applyCatalogFixes } from "./lib/catalogFixes";
 import { seedCatalogIfEmpty } from "./lib/seedCatalog";
 import { seedProjectsIfEmpty } from "./lib/seedProjects";
-import { applyCatalogFixes } from "./lib/catalogFixes";
 import { seedDighazProjects } from "./lib/dighazProjects";
+import { ensureCatalogTables } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -26,7 +27,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  void (async () => { await seedCatalogIfEmpty(); await seedProjectsIfEmpty(); await applyCatalogFixes(); await seedDighazProjects(); })();
+  void (async () => { await ensureCatalogTables(); await seedCatalogIfEmpty(); await seedProjectsIfEmpty(); await applyCatalogFixes(); await seedDighazProjects(); })();
 
   // Keep-alive: Render's free plan sleeps after ~15 min without public traffic.
   // Pinging our own public URL every 10 min counts as traffic and prevents it.

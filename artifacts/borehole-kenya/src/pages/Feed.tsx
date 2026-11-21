@@ -1,10 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VIDEO_CATS, catOf, type VideoCat } from "@/lib/videoCats";
-import { memberToken, memberApi, signOutMember, claimAdmin } from "@/lib/member";
+import { memberToken, memberApi, signOutMember } from "@/lib/member";
 import { Link } from "wouter";
 import { MessageCircle, MapPin, Volume2, VolumeX, X, Droplets, Construction, Sun, Gauge, Search, Compass, FlaskConical, Send, Trash2, ThumbsUp, MoreHorizontal, Reply, Play, Pause, ShieldCheck, LocateFixed, Heart, Share2, Eye, Plus, UploadCloud, ChevronsDown } from "lucide-react";
 import { whatsappLink } from "@/lib/utils";
 import PlaceInput from "@/components/PlaceInput";
+import { enqueueUploads } from "@/lib/uploadQueue";
+import UploadQueuePanel from "@/components/UploadQueuePanel";
 import { countySuggestions, subCountySuggestions, wardSuggestions, villageSuggestions, rememberVillage, whereAmI, reverseGeocode, loadAreas } from "@/lib/places";
 const MapPicker = lazy(() => import("@/components/MapPicker"));
 
@@ -86,7 +88,8 @@ export default function Feed() {
   const [muted, setMuted] = useState(() => store.get("kws_feed_muted") === "1"); // sound is ON unless the visitor muted it
   const [blocked, setBlocked] = useState(false); // the browser refused sound until the first tap
   const [auto, setAuto] = useState(() => store.get("kws_feed_auto") !== "0"); // auto-scroll to the next video when one ends
-  const [stats, setStats] = useState<Record<string, Stat>>({});
+  // the last numbers seen are kept on this phone, so likes and views never flash to zero while the server wakes up
+  const [stats, setStats] = useState<Record<string, Stat>>(() => { try { return JSON.parse(localStorage.getItem("site_vstats") || "{}"); } catch { return {}; } });
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number; slide: number }[]>([]);
   const [flash, setFlash] = useState<{ slide: number; paused: boolean; n: number } | null>(null);
@@ -95,7 +98,6 @@ export default function Feed() {
   const [adminKey, setAdminKey] = useState(() => store.get("kws_admin"));
   // A signed-in member on the poster list can post (and delete their own) videos, like the admin can
   const [memberTok] = useState(() => memberToken());
-  useEffect(() => { if (!adminKey) claimAdmin().then((k) => { if (k) setAdminKey(k); }); }, []);
   const [canPost, setCanPost] = useState(false);
   const [needsGoogle, setNeedsGoogle] = useState(false);
   useEffect(() => {
@@ -159,10 +161,20 @@ export default function Feed() {
       if (idx > 0) window.setTimeout(() => scroller.current?.scrollTo({ top: idx * scroller.current.clientHeight }), 60);
     };
     loadAll();
-    fetch(statsApi(`?clientId=${encodeURIComponent(clientId)}`))
-      .then((r) => r.json())
-      .then((d) => { setStats(d.stats ?? {}); setLiked(new Set(d.liked ?? [])); })
-      .catch(() => {});
+    // The server may be asleep for up to a minute. Keep asking until it answers, instead of giving up and showing zeros.
+    let stopped = false;
+    const loadStats = (attempt: number) => {
+      fetch(statsApi(`?clientId=${encodeURIComponent(clientId)}`))
+        .then((r) => { if (!r.ok) throw new Error("not ready"); return r.json(); })
+        .then((d) => {
+          if (stopped) return;
+          setStats(d.stats ?? {}); setLiked(new Set(d.liked ?? []));
+          try { localStorage.setItem("site_vstats", JSON.stringify(d.stats ?? {})); } catch { /* private mode */ }
+        })
+        .catch(() => { if (!stopped && attempt < 12) window.setTimeout(() => loadStats(attempt + 1), Math.min(2000 * (attempt + 1), 10000)); });
+    };
+    loadStats(0);
+    return () => { stopped = true; };
   }, []);
 
   // Admin sign-in: open the page once with ?admin=1
@@ -598,9 +610,11 @@ export default function Feed() {
           memberTok={memberTok}
           onClose={() => setUploading(false)}
           onBadAdmin={() => { store.set("kws_admin", ""); setAdminKey(""); setUploading(false); }}
-          onDone={(v) => { setVideos((l) => [v, ...(l ?? [])]); setCat(v.category ?? "boreholes"); setUploading(false); scroller.current?.scrollTo({ top: 0 }); }}
+          onDone={(v) => { setVideos((l) => [v, ...(l ?? [])]); setCat(v.category ?? "boreholes"); scroller.current?.scrollTo({ top: 0 }); }}
         />
       )}
+
+      <UploadQueuePanel />
 
       {openId && (
         <CommentSheet
@@ -815,7 +829,8 @@ const CHUNK = 20 * 1024 * 1024; // 20 MB pieces, so even large originals upload 
 export function UploadSheet({ adminKey, memberTok, onClose, onBadAdmin, onDone }: {
   adminKey: string; memberTok?: string; onClose: () => void; onBadAdmin: () => void; onDone: (v: FeedVideo) => void;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const file = files[0] ?? null;   // the first one is previewed
   const [county, setCounty] = useState("");
   const [sub, setSub] = useState("");
   const [ward, setWard] = useState("");
@@ -826,8 +841,6 @@ export function UploadSheet({ adminKey, memberTok, onClose, onBadAdmin, onDone }
   const [, setAreasReady] = useState(0);
   useEffect(() => { void loadAreas().then(() => setAreasReady((n) => n + 1)); }, []);
   const [category, setCategory] = useState<VideoCat>("boreholes");
-  const [pct, setPct] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -841,7 +854,6 @@ export function UploadSheet({ adminKey, memberTok, onClose, onBadAdmin, onDone }
     setPreviewFailed(false);
     return () => URL.revokeObjectURL(u);
   }, [file]);
-  useEffect(() => { if (busy) previewRef.current?.pause(); }, [busy]);
 
   const title = VIDEO_CATS.find((c) => c.id === category)!.titleOf([county.trim(), sub.trim()].filter(Boolean).join(", ") || "Kenya");
 
@@ -872,89 +884,99 @@ export function UploadSheet({ adminKey, memberTok, onClose, onBadAdmin, onDone }
     if (w.village) setVillage((v) => v || w.village);
   };
 
-  const sendChunk = (url: string, form: FormData, uid: string, start: number, end: number, total: number, onProg: (loaded: number) => void) =>
+  const sendChunk = (url: string, form: FormData, uid: string, start: number, end: number, total: number, onProg: (loaded: number) => void, reg: (abort: () => void) => void) =>
     new Promise<{ secure_url?: string; public_id?: string; error?: { message: string } }>((resolve, reject) => {
       const x = new XMLHttpRequest();
+      reg(() => x.abort());
       x.open("POST", url);
       x.setRequestHeader("X-Unique-Upload-Id", uid);
       x.setRequestHeader("Content-Range", `bytes ${start}-${end - 1}/${total}`);
       x.upload.onprogress = (e) => onProg(e.loaded);
       x.onload = () => { try { const d = JSON.parse(x.responseText); x.status < 300 ? resolve(d) : reject(new Error(d.error?.message ?? "Upload failed")); } catch { reject(new Error("Upload failed")); } };
       x.onerror = () => reject(new Error("Network error during upload"));
+      x.onabort = () => reject(new Error("Cancelled"));
       x.send(form);
     });
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file || busy) return;
-    setBusy(true); setErr(""); setPct(0);
-    try {
+  // One upload job for one file. It runs later, in the background queue, so everything it needs is captured here now.
+  const makeRun = (f: File) => {
+    const det = { title, category, county: county.trim(), sub: sub.trim(), ward: ward.trim(), village: village.trim(), coords };
+    return async (onPct: (n: number) => void, reg: (abort: () => void) => void) => {
       const sr = await fetch(`${API}/api/feed-videos/sign`, { method: "POST", headers: auth });
       if (sr.status === 403) {
-        if (adminKey) { onBadAdmin(); window.alert("Admin key no longer valid"); return; }
+        if (adminKey) { onBadAdmin(); throw new Error("Admin key no longer valid. Please sign in again."); }
         throw new Error("Your account is not approved to post videos yet.");
       }
       const s = await sr.json();
       if (!sr.ok) throw new Error(s.error ?? "Could not start upload");
+      const loc = [det.county, det.sub, det.ward].filter(Boolean).join(", ");
       if (s.mode === "github") {
-        if (!/\.(mp4|webm)$/i.test(file.name)) throw new Error("Please choose an .mp4 or .webm video");
-        if (file.size > s.maxMB * 1048576) throw new Error(`Video is too big (max ${s.maxMB} MB). Compress it or split it.`);
-        const q = new URLSearchParams({ name: file.name, title, category, location: [county.trim(), sub.trim(), ward.trim()].filter(Boolean).join(", "), village: village.trim(), lat: coords ? String(coords.lat) : "", lng: coords ? String(coords.lng) : "" });
+        if (!/\.(mp4|webm)$/i.test(f.name)) throw new Error("Please choose an .mp4 or .webm video");
+        if (f.size > s.maxMB * 1048576) throw new Error(`Video is too big (max ${s.maxMB} MB). Compress it or split it.`);
+        const q = new URLSearchParams({ name: f.name, title: det.title, category: det.category, location: loc, village: det.village, lat: det.coords ? String(det.coords.lat) : "", lng: det.coords ? String(det.coords.lng) : "" });
         const d = await new Promise<{ id: number; url: string; title: string; location?: string; createdAt?: string; error?: string }>((resolve, reject) => {
           const x = new XMLHttpRequest();
+          reg(() => x.abort());
           x.open("POST", `${API}/api/feed-videos/upload?${q}`);
           Object.entries(auth).forEach(([k, val]) => x.setRequestHeader(k, val));
-          x.setRequestHeader("Content-Type", file.type || "video/mp4");
-          x.upload.onprogress = (ev) => setPct(Math.round((ev.loaded / ev.total) * 100));
+          x.setRequestHeader("Content-Type", f.type || "video/mp4");
+          x.upload.onprogress = (ev) => onPct((ev.loaded / ev.total) * 100);
           x.onload = () => { try { const j = JSON.parse(x.responseText); x.status < 300 ? resolve(j) : reject(new Error(j.error ?? "Upload failed")); } catch { reject(new Error("Upload failed")); } };
           x.onerror = () => reject(new Error("Network error during upload"));
-          x.send(file);
+          x.onabort = () => reject(new Error("Cancelled"));
+          x.send(f);
         });
-        window.alert("Saved to GitHub. It shows for visitors in about 2 minutes, after the site rebuilds.");
-        rememberVillage(village);
-        onDone({ key: `db-${d.id}`, dbId: d.id, src: `${base}${d.url}`, title: d.title, location: d.location ?? undefined, village: village.trim() || undefined, lat: coords?.lat, lng: coords?.lng, mine: true, category });
-        return;
+        rememberVillage(det.village);
+        onDone({ key: `db-${d.id}`, dbId: d.id, src: `${base}${d.url}`, title: d.title, location: d.location ?? undefined, village: det.village || undefined, lat: det.coords?.lat, lng: det.coords?.lng, mine: true, category: det.category });
+        return { title: d.title };
       }
       const url = `https://api.cloudinary.com/v1_1/${s.cloudName}/video/upload`;
       const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let last: Awaited<ReturnType<typeof sendChunk>> = {};
-      for (let start = 0; start < file.size || start === 0; start += CHUNK) {
-        const end = Math.min(start + CHUNK, file.size);
+      for (let start = 0; start < f.size || start === 0; start += CHUNK) {
+        const end = Math.min(start + CHUNK, f.size);
         const form = new FormData();
-        form.append("file", file.slice(start, end), file.name);
+        form.append("file", f.slice(start, end), f.name);
         form.append("api_key", s.apiKey);
         form.append("timestamp", String(s.timestamp));
         form.append("signature", s.signature);
         form.append("folder", s.folder);
-        last = await sendChunk(url, form, uid, start, end, file.size, (l) => setPct(Math.round(((start + l) / file.size) * 100)));
-        if (end >= file.size) break;
+        last = await sendChunk(url, form, uid, start, end, f.size, (l) => onPct(((start + l) / f.size) * 100), reg);
+        if (end >= f.size) break;
       }
       if (!last.secure_url || !last.public_id) throw new Error("Upload did not finish");
       // Original file is served untouched. Only non-MP4 phone formats (e.g. .MOV) are converted to H.264 so browsers can play them.
-      const isMp4 = /\.mp4$/i.test(file.name);
+      const isMp4 = /\.mp4$/i.test(f.name);
       const root = last.secure_url.replace(/\/upload\/.*$/, "/upload/");
       const play = isMp4 ? last.secure_url : `${root}f_mp4,vc_h264/${last.public_id}.mp4`;
       const poster = `${root}so_1,w_720,f_jpg/${last.public_id}.jpg`;
-      const loc = [county.trim(), sub.trim(), ward.trim()].filter(Boolean).join(", ");
       const r = await fetch(`${API}/api/feed-videos`, {
         method: "POST", headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ publicId: last.public_id, url: play, poster, title, location: loc, village: village.trim(), lat: coords?.lat, lng: coords?.lng, category }),
+        body: JSON.stringify({ publicId: last.public_id, url: play, poster, title: det.title, location: loc, village: det.village, lat: det.coords?.lat, lng: det.coords?.lng, category: det.category }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Could not save video");
-      rememberVillage(village);
-      onDone({ key: `db-${d.id}`, dbId: d.id, src: d.url, poster: d.poster ?? undefined, title: d.title, location: d.location ?? undefined, village: village.trim() || undefined, lat: coords?.lat, lng: coords?.lng, mine: true, category });
-    } catch (x) { setErr(x instanceof Error ? x.message : "Upload failed"); }
-    setBusy(false);
+      rememberVillage(det.village);
+      onDone({ key: `db-${d.id}`, dbId: d.id, src: d.url, poster: d.poster ?? undefined, title: d.title, location: d.location ?? undefined, village: det.village || undefined, lat: det.coords?.lat, lng: det.coords?.lng, mine: true, category: det.category });
+      return { title: d.title };
+    };
+  };
+
+  // Posting hands every chosen video to the background queue and closes the sheet straight away, so more can be added.
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!files.length) return;
+    enqueueUploads(files.map((f) => ({ name: f.name, size: f.size, run: makeRun(f) })));
+    onClose();
   };
 
   const input = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={() => !busy && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="max-h-[94dvh] w-full space-y-3 overflow-y-auto rounded-t-2xl bg-card p-4 shadow-2xl md:max-w-md md:rounded-2xl">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-bold text-foreground"><UploadCloud className="h-5 w-5 text-primary" /> Post a new video</h3>
-          <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="rounded-full p-1.5 hover:bg-muted"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1.5 hover:bg-muted"><X className="h-5 w-5" /></button>
         </div>
         {previewUrl && (
           <div className="mx-auto w-full max-w-[220px] overflow-hidden rounded-xl bg-black shadow-lg ring-1 ring-border">
@@ -975,16 +997,37 @@ export function UploadSheet({ adminKey, memberTok, onClose, onBadAdmin, onDone }
           </div>
         )}
         <label className="block cursor-pointer rounded-lg border-2 border-dashed border-border p-3 text-center text-sm text-muted-foreground">
-          <input type="file" accept="video/*" className="sr-only" disabled={busy} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          {file
-            ? <><span className="block truncate font-semibold text-foreground">{file.name} · {(file.size / 1048576).toFixed(1)} MB</span><span className="text-xs text-primary">Tap to choose a different video</span></>
-            : "Tap to choose a video (.mp4 recommended, original quality is kept)"}
+          <input type="file" accept="video/*" multiple className="sr-only" data-testid="video-pick"
+            onChange={(e) => {
+              // every pick is ADDED to the list (not replaced), so you can keep adding; the same file is never added twice
+              const add = Array.from(e.target.files ?? []);
+              setFiles((cur) => [...cur, ...add.filter((f) => !cur.some((c) => c.name === f.name && c.size === f.size && c.lastModified === f.lastModified))]);
+              e.target.value = "";
+            }} />
+          <span className="font-semibold text-foreground">{files.length ? "+ Add more videos" : "Tap to choose your videos"}</span>
+          <span className="mt-0.5 block text-[11px]">{files.length ? "Add as many as you like, then tap Upload once." : "Tick as many as you want (hold one video, then tap the others). .mp4 is best, original quality is kept."}</span>
         </label>
+        {files.length > 0 && (
+          <div className="space-y-1.5" data-testid="video-list">
+            <p className="text-xs font-semibold text-foreground">{files.length} {files.length === 1 ? "video" : "videos"} ready · {(files.reduce((a, f) => a + f.size, 0) / 1048576).toFixed(1)} MB</p>
+            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-1.5">
+              {files.map((f, i) => (
+                <li key={`${f.name}-${f.size}-${f.lastModified}`} className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{(f.size / 1048576).toFixed(1)} MB</span>
+                  <button type="button" onClick={() => setFiles((cur) => cur.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`} className="shrink-0 rounded-full p-1 hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
+                </li>
+              ))}
+            </ul>
+            {files.length > 1 && <p className="text-[11px] text-muted-foreground">Each video becomes its own post. All get the same category and place.</p>}
+          </div>
+        )}
         <div>
           <p className="mb-1 text-xs font-semibold text-foreground">What is this video?</p>
           <div className="flex flex-wrap gap-1.5">
             {VIDEO_CATS.map((c) => (
-              <button type="button" key={c.id} disabled={busy} onClick={() => setCategory(c.id)} aria-pressed={category === c.id}
+              <button type="button" key={c.id} onClick={() => setCategory(c.id)} aria-pressed={category === c.id}
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${category === c.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground hover:bg-muted"}`}>
                 {c.label}
               </button>
@@ -992,40 +1035,34 @@ export function UploadSheet({ adminKey, memberTok, onClose, onBadAdmin, onDone }
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={useMyLocation} disabled={busy || locating} data-testid="button-use-location"
+          <button type="button" onClick={useMyLocation} disabled={locating} data-testid="button-use-location"
             className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 py-2 text-[13px] font-semibold text-primary disabled:opacity-60">
             <LocateFixed className="h-4 w-4" /> {locating ? "Finding…" : "My location"}
           </button>
-          <button type="button" onClick={() => setMapOpen(true)} disabled={busy} data-testid="button-pick-map"
+          <button type="button" onClick={() => setMapOpen(true)} data-testid="button-pick-map"
             className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 py-2 text-[13px] font-semibold text-primary disabled:opacity-60">
             <MapPin className="h-4 w-4" /> Pick on map
           </button>
         </div>
         {coords && <p className="-mt-1 flex items-center gap-1 text-xs font-medium text-emerald-700"><MapPin className="h-3 w-3" /> Map pin saved ({coords.lat.toFixed(4)}, {coords.lng.toFixed(4)})</p>}
         <div className="grid grid-cols-2 gap-2">
-          <PlaceInput className={input} placeholder="County e.g. Makueni" value={county} onChange={setCounty} suggest={countySuggestions} disabled={busy} testId="input-county" />
+          <PlaceInput className={input} placeholder="County e.g. Makueni" value={county} onChange={setCounty} suggest={countySuggestions} testId="input-county" />
           <PlaceInput className={input} placeholder="Sub-county e.g. Kibwezi West" value={sub} onChange={setSub} suggest={(q) => subCountySuggestions(q, county)} maxLength={50}
-            onPick={(sg) => { if (sg.county) setCounty(sg.county); }} disabled={busy} testId="input-sub" />
+            onPick={(sg) => { if (sg.county) setCounty(sg.county); }} testId="input-sub" />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PlaceInput className={input} placeholder="Ward e.g. Makindu" value={ward} onChange={setWard} suggest={(q) => wardSuggestions(q, county, sub)} maxLength={50}
-            onPick={(sg) => { if (sg.county) setCounty(sg.county); if (sg.sub) setSub(sg.sub); }} disabled={busy} testId="input-ward" />
-          <PlaceInput className={input} placeholder="Village (optional)" value={village} onChange={setVillage} suggest={(q) => villageSuggestions(q, county)} maxLength={60} disabled={busy} testId="input-village" />
+            onPick={(sg) => { if (sg.county) setCounty(sg.county); if (sg.sub) setSub(sg.sub); }} testId="input-ward" />
+          <PlaceInput className={input} placeholder="Village (optional)" value={village} onChange={setVillage} suggest={(q) => villageSuggestions(q, county)} maxLength={60} testId="input-village" />
         </div>
         <p className="text-xs text-muted-foreground">Title: <span className="font-semibold text-foreground">{title}</span></p>
-        {busy && (
-          <div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} /></div>
-            <p className="mt-1 text-xs text-muted-foreground">Uploading {pct}%. Keep this page open.</p>
-          </div>
-        )}
         {err && <p className="text-xs text-red-600">{err}</p>}
         {mapOpen && (
           <Suspense fallback={<div className="fixed inset-0 z-[70] grid place-items-center bg-card text-sm text-muted-foreground">Opening the map…</div>}>
             <MapPicker initial={coords} query={[village, ward, sub, county].filter(Boolean).join(", ")} onClose={() => setMapOpen(false)} onConfirm={pickedOnMap} />
           </Suspense>
         )}
-        <button disabled={!file || busy} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Uploading…" : "Post video"}</button>
+        <button disabled={!files.length} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{files.length > 1 ? `Upload ${files.length} videos (each its own post)` : "Post video"}</button>
       </form>
     </div>
   );

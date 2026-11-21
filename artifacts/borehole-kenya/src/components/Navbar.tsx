@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, ShoppingCart, Droplets, LogIn, Home, Info, Wrench, Store, FolderOpen, PlayCircle, Coins, Phone, MessageCircle, ShieldCheck, ArrowRight, Wallet } from "lucide-react";
-import { memberToken } from "@/lib/member";
+import { Menu, X, ShoppingCart, LogIn, Home, Info, Wrench, Store, FolderOpen, PlayCircle, Coins, Phone, MessageCircle, ShieldCheck, ArrowRight, Wallet } from "lucide-react";
+import { memberToken, memberApi } from "@/lib/member";
+import { ADMIN_PATH } from "@/lib/adminPath";
 import { Button } from "@/components/ui/button";
 import { useGetCart } from "@workspace/api-client-react";
 import { getCartSessionId, whatsappLink } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { LiveTitle } from "@/components/LiveTitle";
 import NotificationBell from "@/components/NotificationBell";
 import { openPay } from "@/components/PayDialog";
 import InstallApp from "@/components/InstallApp";
+import { ThemeToggle, ThemeChoice } from "@/components/ThemeToggle";
 
 const navLinks = [
   { href: "/", label: "Home", Icon: Home },
@@ -45,21 +47,29 @@ export default function Navbar() {
   // Re-check on every page change so the button flips after signing in or out.
   const signedIn = !!memberToken() && location !== "";
   const accountHref = signedIn ? "/account" : "/join?mode=login";
+  // The Admin button is shown only to a signed-in account whose email is on the admin list (never to anyone else)
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!signedIn) { setIsAdmin(false); return; }
+    let on = true;
+    memberApi("/members/me").then((d) => { if (on) setIsAdmin(!!d?.member?.admin); }).catch(() => { if (on) setIsAdmin(false); });
+    return () => { on = false; };
+  }, [signedIn]);
 
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled || open ? "bg-white shadow-md border-b border-border" : "bg-white/95 backdrop-blur-sm"
+        scrolled || open ? "bg-white shadow-md border-b border-border dark:bg-card" : "bg-white/95 backdrop-blur-sm dark:bg-card/95"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+        <div className="flex h-14 items-center justify-between gap-1 sm:h-16">
           {/* Logo */}
-          <Link href="/" className="flex shrink-0 items-center gap-2 group sm:gap-2.5">
-            <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-9 w-auto shrink-0 object-contain sm:h-10" />
-            <div className="leading-tight">
-              <div className="whitespace-nowrap text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span><span className="max-[339px]:hidden"> Engineering</span></div>
-              <div className="text-[9px] font-medium uppercase tracking-[.14em] text-muted-foreground sm:text-[10px] sm:tracking-wide">Limited</div>
+          <Link href="/" className="group flex min-w-0 shrink items-center gap-1.5 sm:gap-2.5">
+            <img src={`${import.meta.env.BASE_URL}images/logo-mark.webp`} alt="Dighaz Engineering Limited logo" className="h-8 sm:h-10 w-auto shrink-0 transition-transform duration-300 group-hover:scale-105" />
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span> Engineering</div>
+              <div className="truncate text-[9px] text-muted-foreground font-medium tracking-wide uppercase sm:text-[10px]">Services Kenya</div>
             </div>
           </Link>
 
@@ -84,6 +94,7 @@ export default function Navbar() {
           <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
             <div className="hidden sm:block lg:hidden xl:block"><WhatsAppButton /></div>
             <NotificationBell />
+            <ThemeToggle className="hidden sm:block" />
             <Link href="/cart" className="relative hidden p-1.5 sm:block sm:p-2 rounded-md hover:bg-muted transition-colors" data-testid="link-cart">
               <ShoppingCart className="h-5 w-5 text-foreground/70" />
               {cartCount > 0 && (
@@ -98,13 +109,13 @@ export default function Navbar() {
               onClick={() => openPay()}
               data-testid="button-pay"
               className="mx-1 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-extrabold text-white shadow-md ring-1 ring-white/30 transition hover:shadow-lg active:scale-95 sm:mx-0 sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm"
-              style={{ background: "linear-gradient(135deg, hsl(155 56% 24%), hsl(160 60% 30%) 55%, hsl(199 80% 42%))" }}
+              style={{ background: "linear-gradient(135deg, hsl(160 52% 16%), hsl(210 100% 35%) 60%, hsl(38 92% 50%))" }}
             >
               <Wallet className="h-4 w-4" /> Pay
             </button>
 
             <Button asChild size="sm" className="hidden sm:inline-flex lg:hidden min-[1700px]:inline-flex">
-              <Link href="/contact">Get Free Quote</Link>
+              <Link href="/quote">Get a Quote</Link>
             </Button>
 
             {/* Mobile menu toggle */}
@@ -157,11 +168,11 @@ export default function Navbar() {
                 <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground">{cartCount}</span>
               </Link>
               <Link
-                href="/contact"
+                href="/quote"
                 onClick={() => setOpen(false)}
                 className="flex items-center justify-between rounded-2xl bg-sky-400 px-4 py-3 text-slate-900 shadow-md transition active:scale-[.98]"
               >
-                <span className="text-sm font-extrabold">Get a free quote</span>
+                <span className="text-sm font-extrabold">Get a Quote</span>
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <div className="grid grid-cols-2 gap-2">
@@ -180,6 +191,8 @@ export default function Navbar() {
               >
                 <LogIn className="h-4 w-4" /> {signedIn ? "My account" : "Log in"}
               </Link>
+              {isAdmin && <Link href={ADMIN_PATH} onClick={() => setOpen(false)} data-testid="link-admin-menu" className="flex items-center justify-center gap-1.5 rounded-2xl bg-primary py-2.5 text-[13px] font-bold text-primary-foreground transition active:scale-[.98]"><ShieldCheck className="h-4 w-4" /> Admin panel</Link>}
+              <ThemeChoice />
               <div className="empty:hidden"><InstallApp variant="menu" onDone={() => setOpen(false)} /></div>
               <Link href="/privacy" onClick={() => setOpen(false)} className="block pt-1 text-center text-[11px] font-medium text-muted-foreground">Privacy</Link>
             </div>

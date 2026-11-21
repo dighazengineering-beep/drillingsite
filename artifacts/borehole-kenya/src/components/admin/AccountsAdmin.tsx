@@ -41,7 +41,7 @@ export default function AccountsAdmin({ adminKey, onBadAdmin }: { adminKey: stri
       <div className="divide-y divide-border">
         {shown.map((a) => (
           <div key={a.id} className="flex items-center gap-3 py-3">
-            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-extrabold text-white ${a.suspended ? "bg-slate-400" : "bg-gradient-to-br from-emerald-600 to-sky-500"}`}>{a.name.slice(0, 1).toUpperCase()}</span>
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-extrabold text-white ${a.suspended ? "bg-slate-400" : "bg-gradient-to-br from-primary to-sky-500"}`}>{a.name.slice(0, 1).toUpperCase()}</span>
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">{a.name}
                 {a.google && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" aria-label="Signed in with Google" />}
@@ -51,7 +51,7 @@ export default function AccountsAdmin({ adminKey, onBadAdmin }: { adminKey: stri
               <p className="text-[11px] text-muted-foreground/80">Joined {new Date(a.createdAt).toLocaleDateString("en-KE", { dateStyle: "medium" })}{a.referrals ? ` · ${a.referrals} referrals` : ""}</p>
             </div>
             <div className="flex shrink-0 gap-1">
-              <button onClick={() => suspend(a)} title={a.suspended ? "Restore account" : "Suspend account"} className={`rounded-lg p-2 ${a.suspended ? "text-emerald-700 hover:bg-emerald-50" : "text-amber-600 hover:bg-amber-50"}`}>
+              <button onClick={() => suspend(a)} title={a.suspended ? "Restore account" : "Suspend account"} className={`rounded-lg p-2 ${a.suspended ? "text-emerald-700 hover:bg-emerald-50" : "text-sky-600 hover:bg-sky-50"}`}>
                 {a.suspended ? <CheckCircle2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
               </button>
               <button onClick={() => del(a)} title="Delete account" className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>

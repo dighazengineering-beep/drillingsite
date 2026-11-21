@@ -1,26 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { memberApi } from "@/lib/member";
 import { Link } from "wouter";
-import { ShieldCheck, LogOut, Plus, Trash2, Video, MessageCircle, ExternalLink, Package, Wrench, Users, UserCheck, Wallet, LayoutDashboard, FolderOpen, Inbox, Coins, UserCog, type LucideIcon } from "lucide-react";
+import { ShieldCheck, Mail, LogOut, Plus, Trash2, Video, MessageCircle, ExternalLink, Package, Wrench, Users, UserCheck, Wallet, LayoutDashboard, FolderOpen, Inbox, Coins, UserCog, FileText, HardHat, ShieldAlert, DatabaseBackup, type LucideIcon } from "lucide-react";
 import CatalogEditor from "@/components/admin/CatalogEditor";
 import ReferralsAdmin from "@/components/admin/ReferralsAdmin";
 import Overview from "@/components/admin/Overview";
 import AccountsAdmin from "@/components/admin/AccountsAdmin";
 import EnquiriesAdmin from "@/components/admin/EnquiriesAdmin";
 import PaymentsAdmin from "@/components/admin/PaymentsAdmin";
+import QuotesAdmin from "@/components/admin/QuotesAdmin";
+import ContractsAdmin from "@/components/admin/ContractsAdmin";
+import PermitsAdmin from "@/components/admin/PermitsAdmin";
+import EmailsAdmin from "@/components/admin/EmailsAdmin";
+import JobsAdmin from "@/components/admin/JobsAdmin";
+import SecurityAdmin from "@/components/admin/SecurityAdmin";
+import BackupsAdmin from "@/components/admin/BackupsAdmin";
+import ReportsAdmin from "@/components/admin/ReportsAdmin";
 import UploadersAdmin from "@/components/admin/UploadersAdmin";
+import UploadQueuePanel from "@/components/UploadQueuePanel";
 import { API, api, store, UploadSheet, type FeedVideo } from "@/pages/Feed";
 import { VIDEO_CATS, catOf } from "@/lib/videoCats";
-import { claimAdmin } from "@/lib/member";
 
 interface UpVideo { id: number; title: string; location?: string; source?: string; url: string; category?: string; createdAt?: string }
 interface AdminComment { id: number; videoId: string; name: string; body: string; createdAt: string }
 
 const card = "rounded-2xl bg-card/95 p-4 shadow-xl backdrop-blur sm:p-5";
 
-type Tab = "overview" | "payments" | "products" | "services" | "projects" | "videos" | "comments" | "accounts" | "enquiries" | "referrals" | "posters";
+type Tab = "overview" | "reports" | "payments" | "jobs" | "quotes" | "products" | "services" | "projects" | "videos" | "comments" | "accounts" | "enquiries" | "referrals" | "posters" | "security" | "backups" | "emails" | "permits";
 const GROUPS: { title: string; items: { k: Tab; name: string; Icon: LucideIcon; note: string }[] }[] = [
   { title: "Home", items: [{ k: "overview", name: "Overview", Icon: LayoutDashboard, note: "Your business at a glance" }] },
-  { title: "Money", items: [{ k: "payments", name: "Payments", Icon: Wallet, note: "M-Pesa and bank payments, balances" }] },
+  { title: "Money", items: [{ k: "payments", name: "Payments", Icon: Wallet, note: "M-Pesa and bank payments, balances" }, { k: "permits", name: "Permits", Icon: ShieldCheck, note: "WARMA and NEMA applications and documents" }, { k: "jobs", name: "Job progress", Icon: HardHat, note: "Move each client's job along" }, { k: "quotes", name: "Quotes", Icon: FileText, note: "Build and send price quotes" }] },
+  { title: "Reports", items: [{ k: "reports", name: "Reports", Icon: FileText, note: "Write survey reports as Word files" }] },
+  { title: "Email", items: [{ k: "emails", name: "Emails", Icon: Mail, note: "Email list and send offers" }] },
   { title: "Catalogue", items: [
     { k: "products", name: "Products", Icon: Package, note: "Add, edit, price, photo or delete" },
     { k: "services", name: "Services", Icon: Wrench, note: "Edit services, prices and descriptions" },
@@ -35,6 +46,10 @@ const GROUPS: { title: string; items: { k: Tab; name: string; Icon: LucideIcon; 
   { title: "Videos", items: [
     { k: "videos", name: "Videos", Icon: Video, note: "Videos you uploaded" },
     { k: "comments", name: "Comments", Icon: MessageCircle, note: "Latest comments, delete any" },
+  ] },
+  { title: "System", items: [
+    { k: "security", name: "Security", Icon: ShieldAlert, note: "Admin sign-ins and wrong attempts" },
+    { k: "backups", name: "Backups", Icon: DatabaseBackup, note: "Weekly backup of your data" },
   ] },
 ];
 
@@ -52,6 +67,36 @@ export default function Admin() {
 
   const logout = () => { store.set("kws_admin", ""); setKey(""); };
 
+  // Sign in with Google (only the company's admin Google accounts are accepted, checked by the server)
+  const [gid, setGid] = useState("");
+  const gbtn = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (!key) memberApi("/config").then((c) => setGid(c.googleClientId || "")).catch(() => {}); }, [key]);
+  useEffect(() => {
+    if (key || !gid) return;
+    const init = () => {
+      if (!window.google || !gbtn.current) return;
+      window.google.accounts.id.initialize({
+        client_id: gid,
+        callback: async (resp: { credential: string }) => {
+          setChecking(true); setErr("");
+          try {
+            const r = await fetch(`${API}/api/auth/admin-google`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: resp.credential }) });
+            const d = await r.json();
+            if (r.ok && d.adminKey) { store.set("kws_admin", d.adminKey); setKey(d.adminKey); }
+            else setErr(d.error || "That Google account is not an admin.");
+          } catch { setErr("Could not reach the server. Try again in a moment."); }
+          setChecking(false);
+        },
+      });
+      gbtn.current.innerHTML = "";
+      window.google.accounts.id.renderButton(gbtn.current, { theme: "outline", size: "large", width: 300, text: "signin_with", shape: "pill" });
+    };
+    if (window.google) { init(); return; }
+    const sc = document.createElement("script");
+    sc.src = "https://accounts.google.com/gsi/client"; sc.async = true; sc.onload = init;
+    document.head.appendChild(sc);
+  }, [key, gid]);
+
   const load = (k: string) => {
     fetch(`${API}/api/feed-videos`).then((r) => r.json()).then((d) => {
       const list: UpVideo[] = Array.isArray(d) ? d : [];
@@ -64,17 +109,16 @@ export default function Admin() {
       .catch(() => setComments([]));
   };
 
-  useEffect(() => { if (!key) claimAdmin().then((k) => { if (k) setKey(k); }); }, []);
   useEffect(() => { if (key) load(key); }, [key]);
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
     setChecking(true); setErr("");
     try {
-      const r = await fetch(api("/admin-check"), { method: "POST", headers: { "x-admin-key": pw } });
+      const r = await fetch(`${API}/api/admin/login`, { method: "POST", headers: { "x-admin-key": pw } });
       const d = await r.json();
       if (d.admin) { store.set("kws_admin", pw); setKey(pw); setPw(""); }
-      else setErr("Wrong password, or ADMIN_KEY is not set on the server yet.");
+      else setErr(d.error || "Wrong password, or ADMIN_KEY is not set on the server yet.");
     } catch { setErr("Could not reach the server. Try again in a moment."); }
     setChecking(false);
   };
@@ -94,29 +138,40 @@ export default function Admin() {
     if (r.ok) setComments((l) => (l ?? []).filter((x) => x.id !== c.id));
   };
 
-  const bg = { background: "linear-gradient(135deg, hsl(160 52% 8%) 0%, hsl(158 54% 14%) 45%, hsl(165 56% 20%) 100%)" };
+  const bg = { background: "linear-gradient(135deg, hsl(160 52% 10%) 0%, hsl(214 72% 16%) 50%, hsl(212 75% 24%) 100%)" };
   const current = GROUPS.flatMap((g) => g.items).find((i) => i.k === tab)!;
 
   if (!key) {
     return (
       <div className="relative grid min-h-[calc(100dvh-4rem)] place-items-center overflow-hidden px-4 pt-20 pb-10" style={bg}>
-        <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-sky-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-sky-400/15 blur-3xl" />
         <form onSubmit={login} className={`${card} relative w-full max-w-sm space-y-4`}>
           <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-500 text-white shadow-lg"><ShieldCheck className="h-6 w-6" /></span>
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-primary to-sky-500 text-white shadow-lg"><ShieldCheck className="h-6 w-6" /></span>
             <div>
               <h1 className="text-lg font-extrabold leading-tight text-foreground">Admin sign in</h1>
-              <p className="text-xs text-muted-foreground">Dighaz Engineering control panel</p>
+              <p className="text-xs text-muted-foreground">Dighaz Engineering Limited control panel</p>
             </div>
           </div>
-          <input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Admin password"
-            className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
-          {err && <p className="text-xs text-red-600">{err}</p>}
-          <button disabled={!pw || checking} className="w-full rounded-xl bg-gradient-to-r from-emerald-700 to-sky-600 py-3 text-sm font-bold text-white shadow-lg disabled:opacity-50">
-            {checking ? "Checking…" : "Sign in"}
-          </button>
-          <p className="text-center text-[11px] text-muted-foreground">Or sign in with the admin Google account and this opens by itself.</p>
+          {gid ? (
+            <>
+              <p className="text-center text-xs text-muted-foreground">Sign in with the company Google account. Other accounts are not let in.</p>
+              {err && <p className="text-center text-xs text-red-600" role="alert">{err}</p>}
+              <div ref={gbtn} className="flex min-h-[44px] justify-center" data-testid="admin-google" />
+              {checking && <p className="text-center text-xs text-muted-foreground">Checking…</p>}
+            </>
+          ) : (
+            <>
+              <input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Admin password"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+              {err && <p className="text-xs text-red-600">{err}</p>}
+              <button disabled={!pw || checking} className="w-full rounded-xl bg-gradient-to-r from-[hsl(215_70%_16%)] to-primary py-3 text-sm font-bold text-white shadow-lg disabled:opacity-50">
+                {checking ? "Checking…" : "Sign in"}
+              </button>
+              <p className="text-center text-[11px] text-muted-foreground">Google sign-in is not switched on yet, so the admin password is used.</p>
+            </>
+          )}
         </form>
       </div>
     );
@@ -124,11 +179,11 @@ export default function Admin() {
 
   return (
     <div className="relative min-h-[calc(100dvh-4rem)] overflow-hidden px-3 pt-20 pb-12 sm:px-4" style={bg}>
-      <div className="pointer-events-none absolute -left-24 top-24 h-80 w-80 rounded-full bg-sky-400/15 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 top-[40%] h-96 w-96 rounded-full bg-emerald-400/15 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 top-24 h-80 w-80 rounded-full bg-blue-400/15 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 top-[40%] h-96 w-96 rounded-full bg-sky-400/12 blur-3xl" />
       <div className="relative mx-auto max-w-6xl space-y-4">
         {/* Header */}
-        <div className="relative overflow-hidden rounded-3xl p-4 text-white shadow-2xl ring-1 ring-white/15 sm:p-6" style={{ background: "linear-gradient(120deg, hsl(155 56% 22% / .95), hsl(176 60% 28% / .9) 55%, hsl(199 80% 38% / .9))" }}>
+        <div className="relative overflow-hidden rounded-3xl p-4 text-white shadow-2xl ring-1 ring-white/15 sm:p-6" style={{ background: "linear-gradient(120deg, hsl(160 52% 18% / .96), hsl(212 80% 28% / .93) 55%, hsl(210 100% 35% / .92))" }}>
           <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
           <div className="relative flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -139,7 +194,7 @@ export default function Admin() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => setUploading(true)} className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-bold text-emerald-900 shadow transition active:scale-95"><Plus className="h-4 w-4" /> Upload video</button>
+              <button onClick={() => setUploading(true)} className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-bold text-primary shadow transition active:scale-95"><Plus className="h-4 w-4" /> Upload video</button>
               <Link href="/" className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-sm font-semibold ring-1 ring-white/25 transition hover:bg-white/25"><ExternalLink className="h-4 w-4" /> View site</Link>
               <button onClick={logout} className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-sm font-semibold ring-1 ring-white/25 transition hover:bg-white/25"><LogOut className="h-4 w-4" /> Log out</button>
             </div>
@@ -151,7 +206,7 @@ export default function Admin() {
           <nav className="min-w-0 lg:sticky lg:top-20 lg:self-start">
             <div className="flex gap-1.5 overflow-x-auto rounded-2xl bg-card/95 p-1.5 shadow-xl backdrop-blur [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden">
               {GROUPS.flatMap((g) => g.items).map(({ k, name, Icon }) => (
-                <button key={k} onClick={() => setTab(k)} className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition ${tab === k ? "bg-gradient-to-r from-emerald-700 to-sky-600 text-white shadow" : "text-foreground/80 hover:bg-muted"}`}>
+                <button key={k} onClick={() => setTab(k)} className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition ${tab === k ? "bg-gradient-to-r from-[hsl(215_70%_16%)] to-primary text-white shadow" : "text-foreground/80 hover:bg-muted"}`}>
                   <Icon className="h-4 w-4" /> {name}
                 </button>
               ))}
@@ -161,7 +216,7 @@ export default function Admin() {
                 <div key={g.title}>
                   <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{g.title}</p>
                   {g.items.map(({ k, name, Icon }) => (
-                    <button key={k} onClick={() => setTab(k)} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition ${tab === k ? "bg-gradient-to-r from-emerald-700 to-sky-600 text-white shadow" : "text-foreground/80 hover:bg-muted"}`}>
+                    <button key={k} onClick={() => setTab(k)} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition ${tab === k ? "bg-gradient-to-r from-[hsl(215_70%_16%)] to-primary text-white shadow" : "text-foreground/80 hover:bg-muted"}`}>
                       <Icon className="h-4 w-4" /> {name}
                     </button>
                   ))}
@@ -174,7 +229,7 @@ export default function Admin() {
           <main key={tab} className="min-w-0 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
             <section className={card}>
               <div className="mb-4 flex items-center gap-3 border-b border-border pb-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-emerald-600 to-sky-500 text-white shadow"><current.Icon className="h-5 w-5" /></span>
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-sky-500 text-white shadow"><current.Icon className="h-5 w-5" /></span>
                 <div>
                   <h2 className="text-base font-extrabold leading-tight text-foreground sm:text-lg">{current.name}</h2>
                   <p className="text-xs text-muted-foreground">{current.note}</p>
@@ -183,6 +238,14 @@ export default function Admin() {
 
               {tab === "overview" && <Overview adminKey={key} go={(t) => setTab(t as Tab)} />}
               {tab === "payments" && <PaymentsAdmin adminKey={key} onBadAdmin={logout} />}
+              {tab === "security" && <SecurityAdmin adminKey={key} onBadAdmin={logout} />}
+              {tab === "emails" && <EmailsAdmin adminKey={key} />}
+              {tab === "backups" && <BackupsAdmin adminKey={key} onBadAdmin={logout} />}
+              {tab === "jobs" && <JobsAdmin adminKey={key} onBadAdmin={logout} />}
+              {tab === "quotes" && <QuotesAdmin adminKey={key} onBadAdmin={logout} />}
+              {tab === "quotes" && <ContractsAdmin adminKey={key} />}
+              {tab === "permits" && <PermitsAdmin adminKey={key} />}
+              {tab === "reports" && <ReportsAdmin adminKey={key} onBadAdmin={logout} />}
               {(tab === "products" || tab === "services" || tab === "projects") && <CatalogEditor key={tab} kind={tab} adminKey={key} onBadAdmin={logout} />}
               {tab === "accounts" && <AccountsAdmin adminKey={key} onBadAdmin={logout} />}
               {tab === "enquiries" && <EnquiriesAdmin adminKey={key} onBadAdmin={logout} />}
@@ -250,9 +313,10 @@ export default function Admin() {
           adminKey={key}
           onClose={() => setUploading(false)}
           onBadAdmin={() => { logout(); setUploading(false); }}
-          onDone={(_: FeedVideo) => { setUploading(false); load(key); }}
+          onDone={(_: FeedVideo) => { load(key); }}
         />
       )}
+      <UploadQueuePanel />
     </div>
   );
 }

@@ -7,14 +7,14 @@ type Go = (tab: string) => void;
 
 const tiles = (o: Ov) => [
   { key: "payments", label: "Received", value: `KSh ${Math.round(o.received).toLocaleString("en-KE")}`, sub: `${o.payments} payments`, Icon: Wallet, grad: "from-emerald-500 to-teal-600", wide: true },
-  { key: "payments", label: "Bank to confirm", value: String(o.pendingBank), sub: o.pendingBank ? "Waiting for you" : "All clear", Icon: Clock, grad: "from-amber-500 to-orange-500" },
-  { key: "accounts", label: "Accounts", value: String(o.members), sub: o.suspended ? `${o.suspended} suspended` : "All active", Icon: Users, grad: "from-sky-500 to-blue-600" },
-  { key: "enquiries", label: "Enquiries", value: String(o.enquiries), sub: "From the contact form", Icon: Inbox, grad: "from-violet-500 to-fuchsia-600" },
-  { key: "products", label: "Products", value: String(o.products), sub: "In the store", Icon: Package, grad: "from-cyan-500 to-sky-600" },
-  { key: "services", label: "Services", value: String(o.services), sub: "Offered", Icon: Wrench, grad: "from-lime-500 to-emerald-600" },
-  { key: "projects", label: "Projects", value: String(o.projects), sub: "Completed work", Icon: FolderOpen, grad: "from-rose-500 to-pink-600" },
-  { key: "videos", label: "Videos", value: String(o.videos), sub: "Uploaded by you", Icon: Video, grad: "from-indigo-500 to-blue-600" },
-  { key: "comments", label: "Comments", value: String(o.comments), sub: "On videos", Icon: MessageCircle, grad: "from-fuchsia-500 to-rose-500" },
+  { key: "payments", label: "Bank to confirm", value: String(o.pendingBank), sub: o.pendingBank ? "Waiting for you" : "All clear", Icon: Clock, grad: "from-sky-500 to-orange-500" },
+  { key: "accounts", label: "Accounts", value: String(o.members), sub: o.suspended ? `${o.suspended} suspended` : "All active", Icon: Users, grad: "from-blue-600 to-primary" },
+  { key: "enquiries", label: "Enquiries", value: String(o.enquiries), sub: "From the contact form", Icon: Inbox, grad: "from-indigo-600 to-blue-700" },
+  { key: "products", label: "Products", value: String(o.products), sub: "In the store", Icon: Package, grad: "from-sky-500 to-blue-600" },
+  { key: "services", label: "Services", value: String(o.services), sub: "Offered", Icon: Wrench, grad: "from-sky-500 to-orange-500" },
+  { key: "projects", label: "Projects", value: String(o.projects), sub: "Completed work", Icon: FolderOpen, grad: "from-slate-600 to-slate-800" },
+  { key: "videos", label: "Videos", value: String(o.videos), sub: "Uploaded by you", Icon: Video, grad: "from-blue-700 to-indigo-800" },
+  { key: "comments", label: "Comments", value: String(o.comments), sub: "On videos", Icon: MessageCircle, grad: "from-sky-600 to-red-500" },
 ];
 
 export default function Overview({ adminKey, go }: { adminKey: string; go: Go }) {
@@ -61,7 +61,7 @@ export default function Overview({ adminKey, go }: { adminKey: string; go: Go })
       </div>
 
       {o && (o.pendingBank > 0 || o.enquiries > 0) && (
-        <div className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3.5 text-sm text-amber-900">
+        <div className="rounded-2xl border border-sky-300/60 bg-sky-50 p-3.5 text-sm text-sky-900">
           <p className="mb-1 flex items-center gap-1.5 font-bold"><MessageCircle className="h-4 w-4" /> Needs your attention</p>
           {o.pendingBank > 0 && <button onClick={() => go("payments")} className="block text-left underline underline-offset-2">{o.pendingBank} bank payment{o.pendingBank > 1 ? "s" : ""} waiting to be confirmed</button>}
           {o.enquiries > 0 && <button onClick={() => go("enquiries")} className="block text-left underline underline-offset-2">{o.enquiries} enquiries from the contact form</button>}

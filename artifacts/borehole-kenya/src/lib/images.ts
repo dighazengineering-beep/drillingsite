@@ -11,6 +11,7 @@ export const IMAGES = {
   pumpInstall: `${base}images/pump-install.webp`,
   purification: `${base}images/purification.webp`,
   inspection: `${base}images/inspection.webp`,
+  flushing: `${base}images/flushing-1.webp`,
   // solar and treatment
   solarPump: `${base}images/solar-pump.webp`,
   solarTower: `${base}images/solar-tower.webp`,
@@ -28,6 +29,7 @@ export const IMAGES = {
 export function pickImage(...texts: (string | undefined | null)[]): string {
   const t = texts.filter(Boolean).join(" ").toLowerCase();
   if (/inspect|camera/.test(t)) return IMAGES.inspection;
+  if (/flush/.test(t)) return IMAGES.flushing;
   if (/survey|hydro|geolog|geophys/.test(t)) return IMAGES.survey;
   if (/test.?pump|pump.?test/.test(t)) return IMAGES.testPumping;
   if (/purif|treat|filter/.test(t)) return IMAGES.purification;
@@ -39,7 +41,8 @@ export function pickImage(...texts: (string | undefined | null)[]): string {
 
 /** Where to focus when a photo is cropped, so the important part stays in view. */
 const POSITIONS: Record<string, string> = {
-  [IMAGES.drilling]: "center 50%",
+  [IMAGES.drilling]: "center 80%", // branded truck and driller
+  [IMAGES.flushing]: "center 45%", // water and sand jet from the borehole
   [IMAGES.survey]: "center 55%",
   [IMAGES.inspection]: "center 40%",
   [IMAGES.testPumping]: "center 35%",
@@ -58,7 +61,7 @@ export function imagePosition(src: string): string {
 
 /** Wide header background: the photo fills the width under a blue wash. */
 export function bannerBackground(src: string, position?: string, live = true): string {
-  return `linear-gradient(90deg, hsl(160 52% 10% / .94) 0%, hsl(158 54% 16% / .86) 50%, hsl(155 56% 22% / .70) 100%), ${live ? photoLayer(src) : `url(${src})`} ${position ?? imagePosition(src)} / cover`;
+  return `linear-gradient(90deg, hsl(160 52% 10% / .94) 0%, hsl(214 72% 16% / .86) 50%, hsl(212 75% 22% / .70) 100%), ${live ? photoLayer(src) : `url(${src})`} ${position ?? imagePosition(src)} / cover`;
 }
 
 /**
@@ -70,7 +73,7 @@ export function photoLayer(src: string): string {
 }
 
 /** Header used when a project has no photo yet. */
-export const PLAIN_BANNER = "linear-gradient(135deg, hsl(160 52% 10%) 0%, hsl(158 54% 16%) 50%, hsl(155 56% 24%) 100%)";
+export const PLAIN_BANNER = "linear-gradient(135deg, hsl(160 52% 10%) 0%, hsl(214 72% 16%) 50%, hsl(212 75% 24%) 100%)";
 
 
 /** Full-width photo behind a page's content, darkened slightly so white cards on top stay easy to read. */

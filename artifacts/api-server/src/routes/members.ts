@@ -1,4 +1,6 @@
 import { Router, type Request, type Response } from "express";
+import { adminEmails } from "../lib/adminAuth";
+import { isAdminKey as isAdmin } from "../lib/adminAuth";
 import crypto from "node:crypto";
 import { pool } from "@workspace/db";
 
@@ -67,10 +69,6 @@ async function rates() {
 }
 
 /* ---------------------------------------------------------------- security */
-const isAdmin = (key: unknown) => {
-  const k = process.env.ADMIN_KEY;
-  return !!k && typeof key === "string" && key === k;
-};
 
 // Sessions are signed tokens. Set MEMBER_SECRET on the server to keep members signed in across restarts.
 const SECRET = process.env.MEMBER_SECRET || (process.env.ADMIN_KEY ? `m:${process.env.ADMIN_KEY}` : crypto.randomBytes(32).toString("hex"));
@@ -137,7 +135,7 @@ async function newCode() {
 const clean = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
 
-const publicMember = (m: any) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone ?? "", code: m.code, affiliate: !!m.affiliate });
+const publicMember = (m: any) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone ?? "", code: m.code, affiliate: !!m.affiliate, admin: adminEmails().includes(String(m.email ?? "").toLowerCase()) });   // admin: only used to show the Admin button; the admin area itself needs a Google sign-in
 
 export async function memberFrom(req: Request) {
   const auth = req.header("authorization") ?? "";
@@ -164,19 +162,6 @@ function shapeReferral(r: Row) {
     notes: r.notes, createdAt: r.created_at,
   };
 }
-
-/* ------------------------------------------------------------ company admins */
-// People who are admins just by signing in. Set ADMIN_EMAILS on the server (comma separated) to change the list.
-// The email must be confirmed by Google sign-in, so nobody can become admin by typing someone else's address.
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "dighazengineeringltd@gmail.com,190lisam@gmail.com")
-  .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-router.get("/members/admin-key", async (req: Request, res: Response) => {
-  try {
-    const m = await memberFrom(req);
-    const ok = !!m && !!m.google_id && ADMIN_EMAILS.includes(String(m.email).toLowerCase());
-    res.json({ key: ok ? (process.env.ADMIN_KEY ?? "") : "" });
-  } catch { res.json({ key: "" }); }
-});
 
 /* ------------------------------------------------------------------- public */
 router.get("/members/config", async (_req, res) => {
@@ -222,7 +207,7 @@ router.post("/members/login", async (req: Request, res: Response) => {
     const m = r.rows[0];
     if (m && !m.pass_hash) { res.status(400).json({ error: "This account uses Google. Tap “Continue with Google”." }); return; }
     if (!m || !checkPassword(password, m.pass_hash)) { res.status(401).json({ error: "Wrong email or password." }); return; }
-    if (m.suspended) { res.status(403).json({ error: "This account is suspended. Please contact Dighaz Engineering." }); return; }
+    if (m.suspended) { res.status(403).json({ error: "This account is suspended. Please contact us." }); return; }
     res.json({ token: makeToken(m.id), member: publicMember(m) });
   } catch {
     res.status(500).json({ error: "Could not sign in. Try again." });
@@ -255,7 +240,7 @@ router.post("/members/google", async (req: Request, res: Response) => {
     } else if (!r.rows[0].google_id) {
       await pool.query("UPDATE members SET google_id=$1 WHERE id=$2", [String(info.sub), r.rows[0].id]);
     }
-    if (r.rows[0].suspended) { res.status(403).json({ error: "This account is suspended. Please contact Dighaz Engineering." }); return; }
+    if (r.rows[0].suspended) { res.status(403).json({ error: "This account is suspended. Please contact us." }); return; }
     res.json({ token: makeToken(r.rows[0].id), member: publicMember(r.rows[0]) });
   } catch {
     res.status(500).json({ error: "Google sign-in failed. Try again." });

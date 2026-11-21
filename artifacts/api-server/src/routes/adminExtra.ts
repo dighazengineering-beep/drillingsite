@@ -1,4 +1,5 @@
 import { Router, type Request } from "express";
+import { isAdminKey } from "../lib/adminAuth";
 import crypto from "node:crypto";
 import { pool, db, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -7,11 +8,7 @@ import { ensureTables as ensureMemberTables } from "./members";
 
 // More admin tools: overview numbers, accounts (suspend / delete), projects, enquiries and photo uploads. All need the ADMIN_KEY header.
 const router = Router();
-const isAdmin = (req: Request) => {
-  const k = process.env.ADMIN_KEY;
-  const h = req.header("x-admin-key");
-  return !!k && typeof h === "string" && h === k;
-};
+const isAdmin = (req: Request) => isAdminKey(req.header("x-admin-key"));
 router.use(["/admin/overview", "/admin/members", "/admin/projects", "/admin/inquiries", "/admin/upload-sign"], (req, res, next) => {
   if (!isAdmin(req)) { res.status(403).json({ error: "Admin only" }); return; }
   next();
@@ -127,7 +124,7 @@ router.post("/admin/upload-sign", (_req, res) => {
   const secret = (process.env.CLOUDINARY_API_SECRET ?? "").trim();
   if (!name || !key || !secret) { res.status(503).json({ error: "Photo storage is not set up yet (add the three Cloudinary keys on Render)." }); return; }
   const timestamp = Math.floor(Date.now() / 1000);
-  const folder = "dighaz-engineering/photos";
+  const folder = "photos";
   const signature = crypto.createHash("sha1").update(`folder=${folder}&timestamp=${timestamp}${secret}`).digest("hex");
   res.json({ cloudName: name, apiKey: key, timestamp, signature, folder });
 });

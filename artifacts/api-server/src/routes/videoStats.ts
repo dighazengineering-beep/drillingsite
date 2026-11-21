@@ -41,7 +41,7 @@ router.get("/video-stats", async (req, res) => {
     stats.rows.forEach((r) => { row(r.video_id).views = r.views; row(r.video_id).shares = r.shares; });
     comments.rows.forEach((r) => (row(r.video_id).comments = r.n));
     res.json({ stats: out, liked: mine.rows.map((r) => r.video_id) });
-  } catch { res.json({ stats: {}, liked: [] }); }
+  } catch { res.status(503).json({ stats: {}, liked: [] }); } // an error, not "zero": the page tries again
 });
 
 // like / unlike (one like per visitor per video)

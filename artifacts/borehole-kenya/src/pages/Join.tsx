@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { Users, Wallet, Link2, BadgeCheck, UserRound, Coins } from "lucide-react";
 import { IMAGES, pageBackdrop } from "@/lib/images";
 import { memberApi, memberToken, setMemberToken, savedRef, type Member } from "@/lib/member";
+import { PhoneField } from "@/components/PhoneField";
 
 declare global { interface Window { google?: any } }
 
@@ -126,7 +127,7 @@ export default function Join() {
 
           {mode === "signup" && <input className={input} placeholder="Full name" value={f.name} onChange={set("name")} autoComplete="name" required />}
           <input className={input} type="email" placeholder="Email" value={f.email} onChange={set("email")} autoComplete="email" required />
-          {mode === "signup" && <input className={input} type="tel" placeholder={affiliate ? "Phone (for your payouts)" : "Phone"} value={f.phone} onChange={set("phone")} autoComplete="tel" />}
+          {mode === "signup" && <PhoneField className={input} value={f.phone} onChange={(v) => setF((x) => ({ ...x, phone: v }))} />}
           <input className={input} type="password" placeholder="Password (6+ characters)" value={f.password} onChange={set("password")} autoComplete={mode === "signup" ? "new-password" : "current-password"} required />
           {err && <p className="text-xs text-red-600">{err}</p>}
           <button disabled={busy} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">

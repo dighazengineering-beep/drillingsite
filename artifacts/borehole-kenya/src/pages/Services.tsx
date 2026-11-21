@@ -8,6 +8,7 @@ import { formatKES } from "@/lib/utils";
 import { IMAGES, pickImage, serviceImage, pageBackdrop } from "@/lib/images";
 import BlendedPhoto from "@/components/BlendedPhoto";
 import { LiveTitle } from "@/components/LiveTitle";
+import { surveyFirst } from "@/lib/order";
 
 export default function Services() {
   const { data: services, isLoading } = useListServices(
@@ -31,7 +32,7 @@ export default function Services() {
                   <Skeleton className="h-3 w-1/2" />
                 </CardContent></Card>
               ))
-            : (services ?? []).map((service) => (
+            : surveyFirst(services ?? []).map((service) => (
                 <Card key={service.id} className="h-full group hover:shadow-md transition-all border-border overflow-hidden flex flex-col" data-testid={`card-service-${service.id}`}>
                   <BlendedPhoto src={serviceImage(service)} alt={service.name} className="aspect-[4/3]" />
                   <CardContent className="p-3.5 flex flex-col flex-1">
@@ -106,11 +107,11 @@ export default function Services() {
             <div className="lg:col-span-2 sm:col-span-2 rounded-xl bg-card/95 border border-primary/20 shadow-sm p-3.5 flex flex-col justify-center text-center">
               <h2 className="text-sm font-bold text-foreground mb-1"><LiveTitle level="sub" text="Need a Custom Solution?" hi="#0ea5e9" /></h2>
               <p className="text-xs text-muted-foreground mb-3 max-w-sm mx-auto">
-                Every water project is unique. Contact our team for a free site assessment and tailored quote.
+                Every water project is unique. Get your quote in minutes, or call us for a free site assessment.
               </p>
               <div className="flex flex-col sm:flex-row gap-2 justify-center">
                 <Button asChild size="sm" className="h-8 text-xs">
-                  <Link href="/contact">Request a Quote</Link>
+                  <Link href="/quote">Get an Instant Quote</Link>
                 </Button>
                 <a href="tel:+254719117660">
                   <Button size="sm" variant="outline" className="h-8 text-xs w-full sm:w-auto">Call +254 719 117 660</Button>

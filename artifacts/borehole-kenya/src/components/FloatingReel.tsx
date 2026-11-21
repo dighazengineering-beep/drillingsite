@@ -70,7 +70,7 @@ export default function FloatingReel() {
       <Link
         href={`/feed?v=${encodeURIComponent(cur.key)}`}
         aria-label={`Watch: ${cur.title}`}
-        className="group relative block aspect-[9/16] overflow-hidden rounded-2xl bg-[hsl(160_40%_9%)] shadow-[0_18px_40px_-12px_rgba(0,0,0,.75)] ring-2 ring-white/70 transition hover:ring-sky-300"
+        className="group relative block aspect-[9/16] overflow-hidden rounded-2xl bg-slate-900 shadow-[0_18px_40px_-12px_rgba(0,0,0,.75)] ring-2 ring-white/70 transition hover:ring-sky-300"
       >
         {cur.poster && <img src={cur.poster} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {!still && <video
@@ -98,7 +98,7 @@ export default function FloatingReel() {
       <button
         onClick={() => { setClosed(true); try { sessionStorage.setItem(KEY, "1"); } catch { /* ignore */ } }}
         aria-label="Close video"
-        className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(160_40%_9%)] text-white shadow ring-1 ring-white/50 transition hover:bg-slate-700"
+        className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow ring-1 ring-white/50 transition hover:bg-slate-700"
       >
         <X className="h-3.5 w-3.5" />
       </button>

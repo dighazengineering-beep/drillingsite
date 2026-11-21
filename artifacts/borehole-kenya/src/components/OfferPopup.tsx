@@ -9,8 +9,8 @@ import { formatKES, whatsappLink } from "@/lib/utils";
 import { LiveTitle, Key } from "@/components/LiveTitle";
 
 // Edit these two numbers to change the offer.
-export const REGULAR_PRICE = 36842;
-export const OFFER_PRICE = 35000;
+export const REGULAR_PRICE = 35000;
+export const OFFER_PRICE = 33000;
 
 // Every other service: this percent off when the customer contacts us today.
 export const DISCOUNT_PCT = 5;
@@ -44,10 +44,10 @@ const SURVEY: PopupSpec = {
   key: "survey",
   badge: "Today's offer",
   image: IMAGES.survey,
-  alt: "Hydrogeological survey for a new borehole",
+  alt: "Geologist carrying out a hydrogeological survey next to a drilling rig",
   title: "Find water before you drill",
   desc: "Get our hydrogeological survey at a special price.",
-  bullets: [<>Advanced <Key>geophysical</Key> survey</>, <>Pinpoints best <Key>drill site, depth and water quality</Key></>],
+  bullets: [<>Advanced <Key>ADMT-300S-X</Key> geophysical survey</>, <>Pinpoints best <Key>drill site, depth and water quality</Key></>],
   cta: "Claim this offer on WhatsApp",
   message: `Hello, I would like to book the hydrogeological survey offer at ${formatKES(OFFER_PRICE)}.`,
   offer: true,
@@ -57,7 +57,7 @@ const SURVEY: PopupSpec = {
 const SPECS: Record<string, PopupSpec> = {
   survey: SURVEY,
   drilling: {
-    key: "drilling", badge: "Drilling offer", image: IMAGES.drilling, alt: "Borehole drilling rig on site",
+    key: "drilling", badge: "Drilling offer", image: IMAGES.drilling, alt: "Dighaz drilling rig and truck on site",
     title: "Borehole drilling, now cheaper", desc: "Our price per metre has dropped. Pick your casing.",
     bullets: [<>Drilled to the agreed <Key>depth and casing</Key></>, <>Ask for your <Key>quote on WhatsApp</Key> in minutes</>],
     cta: "Claim this offer on WhatsApp",
@@ -107,7 +107,7 @@ const SPECS: Record<string, PopupSpec> = {
     cta: "Ask about a product", message: "Hello, I would like help choosing borehole or water products.",
   },
   general: {
-    key: "general", badge: "Our services", image: IMAGES.drilling, alt: "Borehole drilling",
+    key: "general", badge: "Our services", image: IMAGES.drilling, alt: "Dighaz borehole drilling",
     title: "Talk to our team", desc: "Drilling, pumps, purification and more.",
     bullets: [<>Tell us your <Key>location and need</Key></>, <>We reply with <Key>advice and a quote</Key></>],
     cta: "Chat on WhatsApp", message: "Hello, I would like to ask about your services.",
@@ -182,7 +182,7 @@ function OfferPopup({ spec, from }: { spec: PopupSpec; from: number | null }) {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[60] bg-[hsl(160_46%_6%)]/65 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 duration-500" />
+        <Dialog.Overlay className="fixed inset-0 z-[60] bg-slate-950/65 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 duration-500" />
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-[61] w-[calc(100%-4rem)] max-w-[250px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-card shadow-2xl outline-none duration-500 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-bottom-4"
           data-testid="popup-offer"

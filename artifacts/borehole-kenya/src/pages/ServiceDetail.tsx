@@ -192,59 +192,19 @@ export default function ServiceDetail() {
           <div>
             <Card className="sticky top-24 border-border">
               <CardContent className="p-6">
-                <h2 className="text-lg font-semibold text-foreground mb-1"><LiveTitle text="Request a Quote" hi="#0ea5e9" level="sub" /></h2>
-                <p className="text-xs text-muted-foreground mb-5">We respond within 24 hours</p>
-
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField control={form.control} name="name" rules={{ required: "Name is required" }} render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl><Input placeholder="John Kamau" {...field} data-testid="input-name" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="phone" rules={{ required: "Phone is required" }} render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
-                        <FormControl><Input placeholder="+254 7xx xxx xxx" {...field} data-testid="input-phone" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="county" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>County</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-county"><SelectValue placeholder="Select county" /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {KENYA_COUNTIES.map((c) => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="message" rules={{ required: "Message is required" }} render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Message</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder={`Tell us about your ${service.name} requirements...`}
-                            rows={3}
-                            {...field}
-                            data-testid="input-message"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <Button type="submit" className="w-full" disabled={createInquiry.isPending} data-testid="button-submit-quote">
-                      {createInquiry.isPending ? "Sending..." : "Send Inquiry"}
+                <h2 className="text-lg font-semibold text-foreground mb-1"><LiveTitle text="Get Your Quote" hi="#0ea5e9" level="sub" /></h2>
+                <p className="text-xs text-muted-foreground mb-5">Instant quote, no waiting. Download it as a PDF.</p>
+                {service.priceFrom ? (
+                  <Button asChild className="w-full" data-testid="button-submit-quote">
+                    <Link href={`/quote?service=${service.id}`}>Get an Instant Quote</Link>
+                  </Button>
+                ) : (
+                  <a href={whatsappLink(`Hello, I would like a quote for ${service.name}. Please advise.`)} target="_blank" rel="noopener noreferrer">
+                    <Button className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white" data-testid="button-submit-quote">
+                      <MessageSquare className="mr-2 h-4 w-4" /> Ask for a Quote on WhatsApp
                     </Button>
-                  </form>
-                </Form>
+                  </a>
+                )}
 
                 <div className="mt-5 pt-4 border-t border-border text-center">
                   <p className="text-xs text-muted-foreground mb-2">Or call us directly</p>
