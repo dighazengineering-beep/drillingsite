@@ -106,9 +106,9 @@ router.post("/permits/:token/done", async (req, res) => {
     const kinds = (await pool.query("SELECT kind FROM permit_files WHERE app_token=$1", [req.params.token])).rows.map((x) => x.kind as string);
     const isCo = a.applicant === "company";
     let ndir = 0; try { ndir = (JSON.parse(a.company || "{}").directors ?? []).length; } catch { ndir = 0; }
-    const need = a.mode !== "apply" ? [] : isCo ? ["land", "co_cert", "co_kra", "co_cr12", ...Array.from({ length: ndir }, (_, i) => [`dir${i}_front`, `dir${i}_back`]).flat()] : ["id_front", "id_back", "land"];
+    const need = a.mode !== "apply" ? [] : isCo ? ["land", "co_cert", "co_kra", "co_cr12"] : ["land"];
     const miss = need.filter((k) => !kinds.includes(k));
-    if (miss.length) { res.status(400).json({ error: isCo ? "Upload the company documents, the land proof and each director's ID (front and back) first." : "Upload your ID (front and back) and your land proof first." }); return; }
+    if (miss.length) { res.status(400).json({ error: isCo ? "Upload the company documents and the land proof first." : "Upload your land proof first." }); return; }
     if (a.mode === "self" && !kinds.some((k) => k.startsWith("cert_"))) { res.status(400).json({ error: "Upload your WARMA or NEMA certificate." }); return; }
     smsOwner(`New permit ${a.mode === "apply" ? "application (apply for client)" : "certificate upload"} ${ref(a.id)}: ${a.name} (${a.phone}), ${a.permits}${a.fee ? `, fee KSh ${a.fee.toLocaleString("en-KE")}` : ""}.`);
     emailClient(a.email, `We received your permit details (${ref(a.id)})`, `Hello ${a.name},\n\nWe received your ${a.mode === "apply" ? "permit application details" : "permit documents"}. Your reference is ${ref(a.id)}. We will contact you on ${a.phone}.`, { text: "Visit our site", url: siteUrl() });

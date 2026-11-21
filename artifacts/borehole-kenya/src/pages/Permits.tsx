@@ -133,21 +133,19 @@ export default function Permits() {
       for (let i = 0; i < dirs.length; i++) {
         const d = dirs[i];
         if (d.name.trim().length < 3 || d.idNo.replace(/[^A-Za-z0-9]/g, "").length < 5) return setErr(`Director ${i + 1}: enter the name and ID number (or scan the ID).`);
-        if (!d.scan) return setErr(`Director ${i + 1}: scan the ID (front and back).`);
         if (d.kraPin.trim().length > 2 && !/^A0\d{8}[A-Z]$/.test(d.kraPin.trim().toUpperCase())) return setErr(`Director ${i + 1}: the KRA PIN must start with A0, like A012345678B.`);
       }
       if (shs.some((x) => x.name.trim().length < 3 || !(Number(x.pct) > 0))) return setErr("List each shareholder with the percentage they own.");
       if (!files.land) return setErr("Add the land proof (title deed in the company's name, a lease, or the owner's consent letter).");
     } else if (mode === "apply") {
       if (f.idNo.replace(/[^A-Za-z0-9]/g, "").length < 5) return setErr("Enter your ID number.");
-      if (!idScan) return setErr("Scan your ID (front and back). Use the Scan your ID button.");
       if (!files.land) return setErr("Add your land proof (title deed, plot number or chief's letter).");
     } else if (!files.cert_warma && !files.cert_nema) return setErr("Add your WARMA or NEMA certificate.");
     setBusy(true);
     try {
       const r = await fetch(`${API}/api/permits`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode, permits, ...f, kraPin: f.kraPin.trim(), applicant: isCo ? "company" : "person", company: isCo ? { ...co, directors: dirs.map(({ scan: _s, ...d }) => d), shareholders: shs.map((x) => ({ name: x.name, pct: Number(x.pct) })) } : undefined, idMatch: idScan?.match, idSource: idScan?.source, lat: place.lat, lng: place.lng, placeText: place.text }) });
       const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || "Could not save.");
-      for (const [kind, data] of Object.entries(isCo ? { ...files, ...Object.fromEntries(dirs.flatMap((d, i) => [[`dir${i}_front`, d.scan!.front], [`dir${i}_back`, d.scan!.back]])) } : mode === "apply" && idScan ? { ...files, id_front: idScan.front, id_back: idScan.back } : files)) {
+      for (const [kind, data] of Object.entries(isCo ? { ...files, ...Object.fromEntries(dirs.flatMap((d, i) => (d.scan ? [[`dir${i}_front`, d.scan.front], [`dir${i}_back`, d.scan.back]] : []))) } : mode === "apply" && idScan ? { ...files, id_front: idScan.front, id_back: idScan.back } : files)) {
         const u = await fetch(`${API}/api/permits/${d.token}/file`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, data }) });
         if (!u.ok) throw new Error((await u.json().catch(() => ({}))).error || "A photo could not be saved. Try again.");
       }

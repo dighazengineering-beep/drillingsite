@@ -114,7 +114,6 @@ export default function InstantQuote({ contract = false }: { contract?: boolean 
     if (name.trim().length < 2) return setErr("Enter your name.");
     if (phone.replace(/\D/g, "").length < 9) return setErr("Enter your phone number.");
     if (contract && !/^[A-Za-z0-9][A-Za-z0-9 \/.-]{4,19}$/.test(idNo.trim())) return setErr("Enter your ID or passport number. It is printed on the contract.");
-    if (contract && !idScan) return setErr("Scan your ID (front and back). Use the Scan your ID button.");
     if (!email.trim()) return setErr(contract ? "Enter your email address. We send your contract and every payment update there." : "Enter your email address so we can send you the quote.");
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setErr("That email address does not look right.");
     setBusy(true);

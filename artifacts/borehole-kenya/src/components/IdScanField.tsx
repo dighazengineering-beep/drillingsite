@@ -36,9 +36,9 @@ export default function IdScanField({ purpose, value, onChange, onFill }: { purp
       ) : (
         <>
           <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/50 bg-primary/5 px-4 py-3.5 text-sm font-extrabold text-primary transition active:scale-[0.99]" data-testid="button-scan-id">
-            <ScanLine className="h-5 w-5" /> Scan your ID (front and back)
+            <ScanLine className="h-5 w-5" /> Scan your ID (optional)
           </button>
-          <p className="mt-1 text-[11px] text-muted-foreground">Your name and ID number fill in by themselves. ID, driving licence, military ID or passport. We use it only for this {purpose}. If your phone cannot read it, a secure online reader may help.</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Optional: it fills in your name and ID number for you, or just type them. ID, driving licence, military ID or passport. We use it only for this {purpose}. If your phone cannot read it, a secure online reader may help.</p>
         </>
       )}
       {open && <IdScanner purpose={purpose} onClose={() => setOpen(false)} onDone={(r) => { onChange(r); onFill({ name: r.name, idNo: r.idNo }); setOpen(false); }} />}
