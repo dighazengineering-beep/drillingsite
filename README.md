@@ -12,7 +12,7 @@ Website (Vercel environment variables):
 - `VITE_API_URL`: the address of the API, for example `https://dighaz-engineering-api.onrender.com`
 - `VITE_APK_URL`: optional, the Android app download address (leave empty if there is no Android app)
 
-API (Render environment variables): `DATABASE_URL`, `ADMIN_KEY` (the /admin password), `MEMBER_SECRET`, and optionally
+API (Render environment variables): `DATABASE_URL`, `ADMIN_KEY` (the /admin password), `MEMBER_SECRET`, and MPESA_* (Daraja), `OPENAI_API_KEY` and/or `GEMINI_API_KEY` with `REPORT_AI`, `ADMIN_EMAILS`, and optionally
 `GOOGLE_CLIENT_ID`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_BRANCH`.
 
 Never put passwords or keys in this repository.

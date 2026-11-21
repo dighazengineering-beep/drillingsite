@@ -94,37 +94,21 @@ export class SimplePdf {
     this.add(`q ${f2(size)} 0 0 ${f2(size)} ${f2(x)} ${f2(y)} cm /Im1 Do Q`);   // transparent logo: it takes the colour of the page behind it
     return this;
   }
-  /** The company's oval stamp (vector), centred at (cx, cy), `w` points wide. Only the date in the middle changes. */
+  /** The company's rectangular rubber stamp (vector), centred at (cx, cy), `w` points wide. Only the date in the middle changes. */
   stamp(cx: number, cy: number, w: number, dateText: string) {
-    const k = w / 320, blue: Rgb = [0.043, 0.388, 0.839], red: Rgb = [0.898, 0.071, 0.169];
-    const ell = (rx: number, ry: number, lw: number) => {
-      const c = 0.5523, X = rx * k, Y = ry * k;
-      this.add(`${blue.map(f2).join(" ")} RG ${f2(lw * k)} w ${f2(cx + X)} ${f2(cy)} m ${f2(cx + X)} ${f2(cy + c * Y)} ${f2(cx + c * X)} ${f2(cy + Y)} ${f2(cx)} ${f2(cy + Y)} c ${f2(cx - c * X)} ${f2(cy + Y)} ${f2(cx - X)} ${f2(cy + c * Y)} ${f2(cx - X)} ${f2(cy)} c ${f2(cx - X)} ${f2(cy - c * Y)} ${f2(cx - c * X)} ${f2(cy - Y)} ${f2(cx)} ${f2(cy - Y)} c ${f2(cx + c * X)} ${f2(cy - Y)} ${f2(cx + X)} ${f2(cy - c * Y)} ${f2(cx + X)} ${f2(cy)} c S`);
+    const k = w / 360, blue: Rgb = [0.122, 0.184, 0.839], red: Rgb = [0.898, 0.071, 0.169];
+    const x0 = cx - 166 * k, y0 = cy - 71 * k, W = 332 * k, H = 142 * k, r = 12 * k, c = r * 0.5523, x1 = x0 + W, y1 = y0 + H;
+    this.add(`${blue.map(f2).join(" ")} RG ${f2(3.4 * k)} w ${f2(x0 + r)} ${f2(y0)} m ${f2(x1 - r)} ${f2(y0)} l ${f2(x1 - r + c)} ${f2(y0)} ${f2(x1)} ${f2(y0 + r - c)} ${f2(x1)} ${f2(y0 + r)} c ${f2(x1)} ${f2(y1 - r)} l ${f2(x1)} ${f2(y1 - r + c)} ${f2(x1 - r + c)} ${f2(y1)} ${f2(x1 - r)} ${f2(y1)} c ${f2(x0 + r)} ${f2(y1)} l ${f2(x0 + r - c)} ${f2(y1)} ${f2(x0)} ${f2(y1 - r + c)} ${f2(x0)} ${f2(y1 - r)} c ${f2(x0)} ${f2(y0 + r)} l ${f2(x0)} ${f2(y0 + r - c)} ${f2(x0 + r - c)} ${f2(y0)} ${f2(x0 + r)} ${f2(y0)} c S`);
+    const mid = (txt: string, dy: number, size: number, color: Rgb, maxW = 300) => {
+      let sz = size; const t = sanitize(txt);
+      while (textWidth(t, sz * k, true) > maxW * k && sz > 6) sz -= 0.5;
+      this.add(`BT /F2 ${f2(sz * k)} Tf ${color.map(f2).join(" ")} rg ${f2(cx - textWidth(t, sz * k, true) / 2)} ${f2(cy + dy * k)} Td (${esc(t)}) Tj ET`);
     };
-    ell(154, 95, 3.6); ell(146, 87, 1.6); ell(98, 52, 1.2);
-    // letters placed one by one along an arc (top: left to right over the top, bottom: left to right under the bottom)
-    const arc = (txt: string, rx: number, ry: number, top: boolean, size: number) => {
-      // equal steps along the curve itself, so the letters never crowd at the ends
-      const N = 400, ts: number[] = [], cum: number[] = [0];
-      for (let i = 0; i <= N; i++) ts.push(top ? Math.PI - (i / N) * Math.PI : Math.PI + (i / N) * Math.PI);
-      for (let i = 1; i <= N; i++) { const a0 = ts[i - 1]!, a1 = ts[i]!; cum.push(cum[i - 1]! + Math.hypot(rx * (Math.cos(a1) - Math.cos(a0)), ry * (Math.sin(a1) - Math.sin(a0)))); }
-      const total = cum[N]!, trk = size * 0.09;
-      const wid = [...txt].map((ch) => (ch === " " ? size * 0.3 : textWidth(ch, size, true)) + trk);
-      let pos = total / 2 - wid.reduce((x, y2) => x + y2, 0) / 2;
-      for (let i = 0; i < txt.length; i++) {
-        const ch = txt[i]!, cwu = wid[i]!; const sArc = pos + cwu / 2; pos += cwu; if (ch === " ") continue;
-        let j = 0; while (j < N && cum[j]! < sArc) j++;
-        const t = ts[j]!;
-        const px = cx + rx * k * Math.cos(t), py = cy + ry * k * Math.sin(t);
-        const th = top ? Math.atan2(-ry * Math.cos(t), rx * Math.sin(t)) : Math.atan2(ry * Math.cos(t), -rx * Math.sin(t));
-        const c = Math.cos(th), sn = Math.sin(th), cw = (cwu - trk) * k;
-        this.add(`BT /F2 ${f2(size * k)} Tf ${blue.map(f2).join(" ")} rg ${f2(c)} ${f2(sn)} ${f2(-sn)} ${f2(c)} ${f2(px - (cw / 2) * c)} ${f2(py - (cw / 2) * sn)} Tm (${esc(sanitize(ch))}) Tj ET`);
-      }
-    };
-    arc("DIGHAZ ENGINEERING LTD", 112, 60, true, 16);
-    arc("RHAPTA RD, WESTLANDS, NAIROBI", 126, 76, false, 14);
-    const mid = (txt: string, dy: number, size: number, color: Rgb) => this.add(`BT /F2 ${f2(size * k)} Tf ${color.map(f2).join(" ")} rg ${f2(cx - txt.length * size * k * 0.28)} ${f2(cy + dy * k)} Td (${esc(sanitize(txt))}) Tj ET`);
-    mid("Tel: 0742 810 199", 22, 13, blue); mid(dateText, -14, 30, red); mid("Tel: 0719 117 660", -41, 13, blue);
+    mid("DIGHAZ ENGINEERING LIMITED", 40, 17, blue);
+    mid("Rhapta Road, Nairobi", 18, 15, blue);
+    mid(dateText, -17, 28, red);
+    mid("Tel: 0719117660", -44, 15, blue);
+    mid("P.O. Box 147461, Westlands, 00800", -62, 14, blue, 290);
     return this;
   }
   /** A clickable area on the current page that opens a web address. Only plain http(s) addresses are accepted. */

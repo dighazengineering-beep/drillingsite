@@ -1,3 +1,4 @@
+import { PhoneField } from "@/components/PhoneField";
 import { Phone, Mail, MapPin, Clock, MessageSquare, CheckCircle } from "lucide-react";
 import { LiveTitle } from "@/components/LiveTitle";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ interface ContactForm {
 
 const contactInfo = [
   { icon: Phone, label: "Phone & WhatsApp", value: "+254 719 117 660", href: "tel:+254719117660" },
-  { icon: Phone, label: "Other phone", value: "+254 742 810 199", href: "tel:+254742810199" },
+  { icon: Phone, label: "Other phone", value: "+254 110 699 444", href: "tel:+254110699444" },
   { icon: Mail, label: "Email", value: "info@dighazengineering.com", href: "mailto:info@dighazengineering.com" },
   { icon: Mail, label: "Support", value: "support@dighazengineering.com", href: "mailto:support@dighazengineering.com" },
   { icon: Mail, label: "Email", value: "dighazengineering@gmail.com", href: "mailto:dighazengineering@gmail.com" },
@@ -152,7 +153,7 @@ export default function Contact() {
                         <FormField control={form.control} name="phone" rules={{ required: "Phone is required" }} render={({ field }) => (
                           <FormItem>
                             <FormLabel className={label}>Phone *</FormLabel>
-                            <FormControl><Input className="h-9 text-sm" placeholder="+254 7xx xxx xxx" {...field} data-testid="input-phone" /></FormControl>
+                            <FormControl><PhoneField className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={field.value} onChange={field.onChange} testId="input-phone" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
