@@ -1,10 +1,6 @@
 # Render blueprint for the Dighaz Engineering Limited API and database.
 # The website itself is hosted on Vercel (see vercel.json). Nothing here is shared with any other company.
-databases:
-  - name: dighaz-engineering-db
-    plan: free
-    databaseName: dighaz
-    user: dighaz
+# The database is on Aiven (free Postgres). Its connection string is set as DATABASE_URL in the Render dashboard.
 
 services:
   - type: web
@@ -19,9 +15,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: DATABASE_URL
-        fromDatabase:
-          name: dighaz-engineering-db
-          property: connectionString
+        sync: false
       # The password for /admin. Type a strong one in the Render dashboard.
       - key: ADMIN_KEY
         sync: false
