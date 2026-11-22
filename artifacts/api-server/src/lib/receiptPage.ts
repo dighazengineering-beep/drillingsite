@@ -118,7 +118,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .dr{display:flex;align-items:baseline;gap:8px;margin-top:1px}.dr u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);font-size:11px;color:var(--ink);padding:0 4px;white-space:nowrap}
 .svc{text-align:center;font-weight:500;font-size:10.5px;color:var(--navy);margin:4px 0 4px;line-height:1.35}.svc i{font-style:normal;margin:0 6px}
 hr{border:0;border-top:1.5px solid var(--navy);margin:0}
-.flds{position:relative}.sn{position:absolute;right:30px;top:30px;transform:rotate(-20deg);transform-origin:center;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a;letter-spacing:.04em;opacity:.92;white-space:nowrap;pointer-events:none}
+.flds{position:relative}.sn{position:absolute;right:30px;top:30px;transform:rotate(-20deg);transform-origin:center;font:400 24px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a;letter-spacing:.05em;opacity:.95;white-space:nowrap;pointer-events:none}
 .f{display:flex;align-items:flex-end;gap:8px;margin:4px 0}.f span{flex:none;width:112px;white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px}.f u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);padding:0 5px 0;font-size:12.5px;color:var(--ink);min-height:16px;font-weight:500}
 .mid{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:0}.pmw{flex:1}
 .pmr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:3px}.pmr>b{white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px;flex:none}.bxs{display:flex;flex-wrap:wrap;gap:4px 12px}
