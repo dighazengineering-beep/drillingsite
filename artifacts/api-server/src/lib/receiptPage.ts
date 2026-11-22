@@ -99,7 +99,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
   const ref = [d.reference ? `Ref: ${d.reference}` : "", d.note ?? ""].filter(Boolean).join(" · ");
   const amt = `${Math.round(d.amount).toLocaleString("en-KE")}/=`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Receipt ${esc(d.no)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+<title>Receipt ${esc(d.no)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Oswald:wght@400&display=swap" rel="stylesheet"><style>
 :root{--navy:#0b3a8c;--ink:#0f172a;--mut:#475569;--hole:#cfd6e2}
 *{box-sizing:border-box}body{margin:0;background:#e8edf4;font:500 12.5px/1.25 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:16px 8px 24px}
 .wrap{display:flex;justify-content:center}
@@ -111,7 +111,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .perf:before{content:"";position:absolute;left:16px;top:0;bottom:0;border-left:1.5px dashed #c3ccdb}
 .perf:after{content:"";position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,23,42,.07),transparent)}
 .sheet{--page:#e8edf4}.sheet.cap{--page:#fff}
-.top{display:flex;align-items:center;justify-content:space-between;gap:8px}.lg{height:50px;width:auto;flex:none;display:block}.nm{flex:1;min-width:0;white-space:nowrap;display:flex;align-items:center;gap:.28em;height:50px;margin-left:4px;font:800 29px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#0b3a8c;letter-spacing:.01em}.nm b{font-weight:800;display:inline-block;transform:translateY(4px) scaleY(2.46);transform-origin:center}.nm b.g{color:#1a9a3c}.loc{font-weight:700}.vr{width:3px;align-self:stretch;background:var(--navy);margin:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}.lg{height:50px;width:auto;flex:none;display:block}.nm{flex:1;min-width:0;white-space:nowrap;display:flex;align-items:center;gap:.3em;height:50px;margin-left:6px;font:400 40px/1 Oswald,"Arial Narrow","Roboto Condensed",Arial,sans-serif;color:#0b3a8c;letter-spacing:.02em;overflow:hidden}.nm b{font-weight:400;display:inline-block}.nm b.g{color:#1a9a3c}.loc{font-weight:700}.vr{width:3px;align-self:stretch;background:var(--navy);margin:0}
 .ct{list-style:none;margin:2px 0 3px;padding:0;display:flex;justify-content:center;align-items:center;gap:14px}.ct li{display:flex;align-items:center;gap:5px;font-weight:500;font-size:9px;color:var(--navy);margin:0;white-space:nowrap}
 .rt{flex:none;width:150px;text-align:left}.pill{background:var(--navy);color:#fff;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.06em;text-align:center;padding:4px 0;border-radius:7px}
 .nr{display:flex;align-items:center;gap:6px;margin-top:3px}.nr b,.dr b{font-weight:600;color:var(--navy);font-size:13px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:700 17px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a}
@@ -147,7 +147,7 @@ ${fill("For:", forWhat)}</div>
 ${ref ? `<div class="rf">${esc(ref)}</div>` : ""}
 <div class="thx">Thank you for choosing ${esc(name)}<small>Water for life. We drill, you drink.</small></div>
 <div class="foot">This receipt is computer generated and valid with the company stamp.</div>
-</div></div>${embed ? "" : `<div class="btns"><button id="dl">Download PDF</button>${shareButtons([{ label: "Copy link", url: shareUrl }], `Receipt ${d.no}`)}</div>
+</div></div><script>(function(){function fit(){var n=document.querySelector(".nm");if(!n)return;var t=n.firstChild?n:null,f=46;n.style.fontSize=f+"px";while(f>14&&n.scrollWidth>n.clientWidth+1){f-=1;n.style.fontSize=f+"px";}}fit();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);window.addEventListener("load",fit);})();</script>${embed ? "" : `<div class="btns"><button id="dl">Download PDF</button>${shareButtons([{ label: "Copy link", url: shareUrl }], `Receipt ${d.no}`)}</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script>(function(){var b=document.getElementById("dl");if(!b)return;var NO=${JSON.stringify(String(d.no).replace(/[^A-Za-z0-9-]/g, ""))};
 // A real PDF exactly the size of the receipt (200 mm wide, as tall as the receipt), so it never turns into an A4 page, whatever the phone or browser
