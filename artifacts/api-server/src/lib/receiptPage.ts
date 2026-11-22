@@ -82,7 +82,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 :root{--navy:#0b3a8c;--ink:#0f172a;--mut:#475569;--hole:#cfd6e2}
 *{box-sizing:border-box}body{margin:0;background:#e8edf4;font:500 12.5px/1.25 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:16px 8px 24px}
 .wrap{display:flex;justify-content:center}
-.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:7px 22px 5px 46px;overflow:hidden}
+.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:14px 22px 10px 46px;overflow:hidden}
 /* the left edge of a receipt book: the torn perforation with its punched holes */
 .wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:300px 64px}
 .sheet>*:not(.wm):not(.perf){position:relative}
