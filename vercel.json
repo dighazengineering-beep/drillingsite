@@ -5,6 +5,10 @@
   "outputDirectory": "artifacts/borehole-kenya/dist/public",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://dighaz-engineering-api.onrender.com/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
