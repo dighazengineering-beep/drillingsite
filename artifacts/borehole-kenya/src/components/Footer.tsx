@@ -27,7 +27,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="hidden lg:block">
             <div className="flex items-center gap-2 mb-2">
-              <img src={`${import.meta.env.BASE_URL}images/logo-mark.webp`} alt="Dighaz Engineering Limited logo" className="h-9 w-auto" />
+              <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-9 w-auto" />
               <span className="text-sm font-bold text-white">Dighaz Engineering Limited</span>
             </div>
             <p className="leading-relaxed text-white/60 max-w-[15rem]">

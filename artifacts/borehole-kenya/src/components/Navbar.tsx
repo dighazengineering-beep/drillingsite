@@ -66,7 +66,7 @@ export default function Navbar() {
         <div className="flex h-14 items-center justify-between gap-1 sm:h-16">
           {/* Logo */}
           <Link href="/" className="group flex min-w-0 shrink items-center gap-1.5 sm:gap-2.5">
-            <img src={`${import.meta.env.BASE_URL}images/logo-mark.webp`} alt="Dighaz Engineering Limited logo" className="h-8 sm:h-10 w-auto shrink-0 transition-transform duration-300 group-hover:scale-105" />
+            <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="Dighaz Engineering Limited logo" className="h-8 sm:h-10 w-auto shrink-0 transition-transform duration-300 group-hover:scale-105" />
             <div className="min-w-0 leading-tight">
               <div className="truncate text-[13px] font-bold text-foreground sm:text-sm"><span className="text-primary">Dighaz</span> Engineering</div>
               <div className="truncate text-[9px] text-muted-foreground font-medium tracking-wide uppercase sm:text-[10px]">Services Kenya</div>
