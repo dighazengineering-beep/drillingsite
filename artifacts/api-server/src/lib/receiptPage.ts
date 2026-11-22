@@ -83,7 +83,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 :root{--navy:#0b3a8c;--ink:#0f172a;--mut:#475569;--hole:#cfd6e2}
 *{box-sizing:border-box}body{margin:0;background:#e8edf4;font:500 12.5px/1.25 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:16px 8px 24px}
 .wrap{display:flex;justify-content:center}
-.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:11px 22px 7px 46px;overflow:hidden}
+.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:7px 22px 5px 46px;overflow:hidden}
 /* the left edge of a receipt book: the torn perforation with its punched holes */
 .wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:300px 64px}
 .sheet>*:not(.wm):not(.perf){position:relative}
@@ -91,14 +91,14 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .perf:before{content:"";position:absolute;left:16px;top:0;bottom:0;border-left:1.5px dashed #c3ccdb}
 .perf:after{content:"";position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,23,42,.07),transparent)}
 .sheet{--page:#e8edf4}.sheet.cap{--page:#fff}
-.top{display:flex;align-items:center;gap:12px}.lg{width:160px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:2px 0}
-.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0;display:grid;grid-template-rows:auto auto;grid-auto-flow:column;gap:9px 16px;align-content:center;justify-content:start}.ct li{display:flex;align-items:center;gap:5px;font-weight:500;font-size:9.5px;color:var(--navy);margin:0;white-space:nowrap}
-.rt{flex:none;width:185px;text-align:left}.pill{background:var(--navy);color:#fff;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.06em;text-align:center;padding:5px 0;border-radius:8px}
-.nr{display:flex;align-items:center;gap:6px;margin-top:5px}.nr b,.dr b{font-weight:600;color:var(--navy);font-size:13px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:700 17px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a}
-.dr{display:flex;align-items:baseline;gap:8px;margin-top:3px}.dr u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);font-size:11px;color:var(--ink);padding:0 4px;white-space:nowrap}
-.svc{text-align:center;font-weight:500;font-size:10.5px;color:var(--navy);margin:4px 0 3px;line-height:1.4}.svc i{font-style:normal;margin:0 6px}
-hr{border:0;border-top:1.5px solid var(--navy);margin:0 0 2px}
-.f{display:flex;align-items:flex-end;gap:8px;margin:5px 0}.f span{flex:none;width:112px;white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px}.f u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);padding:0 5px 0;font-size:12.5px;color:var(--ink);min-height:16px;font-weight:500}
+.top{display:flex;align-items:center;gap:8px}.lg{width:150px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:0}
+.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0;display:grid;grid-template-rows:auto auto;grid-auto-flow:column;gap:3px 12px;align-content:center;justify-content:start}.ct li{display:flex;align-items:center;gap:5px;font-weight:500;font-size:9.5px;color:var(--navy);margin:0;white-space:nowrap}
+.rt{flex:none;width:185px;text-align:left}.pill{background:var(--navy);color:#fff;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.06em;text-align:center;padding:4px 0;border-radius:7px}
+.nr{display:flex;align-items:center;gap:6px;margin-top:3px}.nr b,.dr b{font-weight:600;color:var(--navy);font-size:13px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:700 17px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a}
+.dr{display:flex;align-items:baseline;gap:8px;margin-top:1px}.dr u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);font-size:11px;color:var(--ink);padding:0 4px;white-space:nowrap}
+.svc{text-align:center;font-weight:500;font-size:10.5px;color:var(--navy);margin:1px 0 1px;line-height:1.25}.svc i{font-style:normal;margin:0 6px}
+hr{border:0;border-top:1.5px solid var(--navy);margin:0}
+.f{display:flex;align-items:flex-end;gap:8px;margin:4px 0}.f span{flex:none;width:112px;white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px}.f u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);padding:0 5px 0;font-size:12.5px;color:var(--ink);min-height:16px;font-weight:500}
 .mid{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:0}.pmw{flex:1}
 .pmr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:3px}.pmr>b{white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px;flex:none}.bxs{display:flex;flex-wrap:wrap;gap:4px 12px}
 .bx{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:12.5px;font-weight:500}.bx i{width:14px;height:14px;border:1.3px solid var(--navy);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font:700 11px/1 Arial,sans-serif;font-style:normal;color:#fff}.bx.on i{background:var(--navy)}.mp{color:#1a9a3c;font-weight:700;font-size:13px}
