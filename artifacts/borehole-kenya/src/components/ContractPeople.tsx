@@ -1,3 +1,4 @@
+import { RelationSelect } from "@/components/RelationSelect";
 import { useEffect, useState } from "react";
 import { Copy, Trash2, Users } from "lucide-react";
 import { API } from "@/lib/member";
@@ -52,7 +53,7 @@ export default function ContractPeople({ token }: { token: string }) {
         <div className="mt-2 space-y-2">
           <select value={role} onChange={(e) => setRole(e.target.value)} className={inp}><option value="witness" disabled={d.signers.filter((x) => x.role === "witness").length >= 3}>Witness (up to 3)</option><option value="lawyer" disabled={d.signers.some((x) => x.role === "lawyer")}>Lawyer</option></select>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" maxLength={80} className={inp} />
-          {role === "witness" && <input value={rel} onChange={(e) => setRel(e.target.value)} placeholder="How are they related to you? (brother, wife, neighbour...)" maxLength={40} className={inp} />}
+          {role === "witness" && <RelationSelect value={rel} onChange={setRel} className={inp} />}
           <div className="grid gap-2"><input value={idNo} onChange={(e) => setIdNo(e.target.value)} placeholder={role === "lawyer" ? "ID (optional)" : "ID number (optional)"} maxLength={20} className={inp} /><PhoneField value={phone} onChange={setPhone} className={inp} /></div>
           <button type="button" disabled={name.trim().length < 2} onClick={() => void addPerson()} className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-extrabold text-primary-foreground disabled:opacity-50">Add {role}</button>
         </div>

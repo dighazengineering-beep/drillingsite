@@ -1,3 +1,4 @@
+import { RelationSelect, savedWitnesses, saveWitness } from "@/components/RelationSelect";
 import CopyLink from "@/components/CopyLink";
 import { PayPlanPicker } from "@/components/PayPlanPicker";
 import { surveyFirst } from "@/lib/order";
@@ -132,7 +133,7 @@ export default function InstantQuote({ contract = false }: { contract?: boolean 
         const cd = await cr.json().catch(() => ({}));
         if (!cr.ok) throw new Error(cd.error || "Could not make the contract. Please try again.");
         try { sessionStorage.setItem("kws-contract-last", String(cd.token)); } catch { /* ignore */ }
-        try { if (Array.isArray(cd.signerLinks) && cd.signerLinks.length) localStorage.setItem(`kws-sl-${cd.token}`, JSON.stringify(Object.fromEntries(cd.signerLinks.map((x: { role: string; name: string; link: string }) => [`${x.role}:${x.name}`, x.link])))); } catch { /* ignore */ }   // the private witness / lawyer links are shown once; they stay on this device   // the form stays filled in, so "Change my details" brings everything back
+        saveWitness(wName); try { if (Array.isArray(cd.signerLinks) && cd.signerLinks.length) localStorage.setItem(`kws-sl-${cd.token}`, JSON.stringify(Object.fromEntries(cd.signerLinks.map((x: { role: string; name: string; link: string }) => [`${x.role}:${x.name}`, x.link])))); } catch { /* ignore */ }   // the private witness / lawyer links are shown once; they stay on this device   // the form stays filled in, so "Change my details" brings everything back
         if (idScan) for (const [kind, data] of [["id_front", idScan.front], ["id_back", idScan.back]] as const) {
           const ur = await fetch(`${API}/api/contracts/${cd.token}/id`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, data }) });
           if (!ur.ok) throw new Error((await ur.json().catch(() => ({}))).error || "Your ID could not be saved. Please press Continue again.");
@@ -359,8 +360,8 @@ export default function InstantQuote({ contract = false }: { contract?: boolean 
                     </div>
                     <div><label className={lab} htmlFor="iq-addr">P.O. Box (optional)</label><input id="iq-addr" value={address} onChange={(e) => setAddress(e.target.value)} className={inp} placeholder="e.g. P.O. Box 123-00100, Nairobi" autoComplete="street-address" data-testid="input-contract-address" /></div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div><label className={lab} htmlFor="iq-wname">Witness full name (optional)</label><input id="iq-wname" value={wName} onChange={(e) => setWName(e.target.value)} maxLength={80} className={inp} placeholder="Leave empty if there is no witness" data-testid="input-witness-name" /></div>
-                      {wName.trim() && <div><label className={lab} htmlFor="iq-wrel">How is the witness related to you? (for example brother, wife, neighbour)</label><input id="iq-wrel" value={wRel} onChange={(e) => setWRel(e.target.value)} maxLength={40} className={inp} data-testid="input-witness-relation" /></div>}
+                      <div><label className={lab} htmlFor="iq-wname">Witness full name (optional)</label><input id="iq-wname" list="iq-wlist" value={wName} onChange={(e) => setWName(e.target.value)} maxLength={80} className={inp} placeholder="Leave empty if there is no witness" data-testid="input-witness-name" autoComplete="off" /><datalist id="iq-wlist">{savedWitnesses().map((n) => <option key={n} value={n} />)}</datalist></div>
+                      {wName.trim() && <div><label className={lab} htmlFor="iq-wrel">How is the witness related to you?</label><RelationSelect id="iq-wrel" value={wRel} onChange={setWRel} className={inp} testId="input-witness-relation" /></div>}
                       {wName.trim() && <div><label className={lab} htmlFor="iq-wid">Witness ID number (optional: the witness can add it)</label><input id="iq-wid" value={wId} onChange={(e) => setWId(e.target.value)} maxLength={20} inputMode="numeric" className={inp} data-testid="input-witness-id" /></div>}
                       {wName.trim() && <div><label className={lab} htmlFor="iq-wphone">Witness phone</label><PhoneField id="iq-wphone" value={wPhone} onChange={setWPhone} className={inp} /></div>}
                     </div>
