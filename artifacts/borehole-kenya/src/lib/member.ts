@@ -1,5 +1,5 @@
 /** Link to a document the server builds (quote, contract, receipt): on the live site it stays on our own domain (the site passes /api to the server). Always a full address, never a short path: a copied short path becomes a broken link. */
-export const docUrl = (path: string) => (typeof location !== "undefined" && !/^(localhost|127\.)/.test(location.hostname) ? `${location.origin}${path}` : `${API}${path}`);   // a FULL address (https://…), so it still works when copied or shared on WhatsApp
+export const docUrl = (path: string) => `${API || "https://dighaz-engineering-api.onrender.com"}${path}`;   // a FULL address straight to the API, so it works when opened, copied or shared on WhatsApp
 export const API = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
 const store = {
   get: (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } },
