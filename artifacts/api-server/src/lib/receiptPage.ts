@@ -91,12 +91,12 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .perf:before{content:"";position:absolute;left:16px;top:0;bottom:0;border-left:1.5px dashed #c3ccdb}
 .perf:after{content:"";position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,23,42,.07),transparent)}
 .sheet{--page:#e8edf4}.sheet.cap{--page:#fff}
-.top{display:flex;align-items:center;gap:8px}.lg{width:150px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:0}
-.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0;display:grid;grid-template-rows:auto auto;grid-auto-flow:column;gap:3px 12px;align-content:center;justify-content:start}.ct li{display:flex;align-items:center;gap:5px;font-weight:500;font-size:9.5px;color:var(--navy);margin:0;white-space:nowrap}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}.lg{height:66px;width:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:0}
+.ct{list-style:none;margin:-8px 0 0;padding:0;display:flex;justify-content:space-between;align-items:center;gap:8px;position:relative;width:calc(100% - 195px)}.ct li{display:flex;align-items:center;gap:5px;font-weight:500;font-size:9.8px;color:var(--navy);margin:0;white-space:nowrap}
 .rt{flex:none;width:185px;text-align:left}.pill{background:var(--navy);color:#fff;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.06em;text-align:center;padding:4px 0;border-radius:7px}
 .nr{display:flex;align-items:center;gap:6px;margin-top:3px}.nr b,.dr b{font-weight:600;color:var(--navy);font-size:13px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:700 17px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a}
 .dr{display:flex;align-items:baseline;gap:8px;margin-top:1px}.dr u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);font-size:11px;color:var(--ink);padding:0 4px;white-space:nowrap}
-.svc{text-align:center;font-weight:500;font-size:10.5px;color:var(--navy);margin:7px 0 5px;line-height:1.35}.svc i{font-style:normal;margin:0 6px}
+.svc{text-align:center;font-weight:500;font-size:10.5px;color:var(--navy);margin:4px 0 4px;line-height:1.35}.svc i{font-style:normal;margin:0 6px}
 hr{border:0;border-top:1.5px solid var(--navy);margin:0}
 .f{display:flex;align-items:flex-end;gap:8px;margin:4px 0}.f span{flex:none;width:112px;white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px}.f u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);padding:0 5px 0;font-size:12.5px;color:var(--ink);min-height:16px;font-weight:500}
 .mid{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:0}.pmw{flex:1}
@@ -111,9 +111,9 @@ hr{border:0;border-top:1.5px solid var(--navy);margin:0}
 @page{size:200mm 100mm;margin:4mm}@media print{.sheet{--page:#fff}body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
 ${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none;--page:#fff}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<div class="wrap"><div class="sheet" id="sh">
 <div class="wm"></div><div class="perf"></div>
-<div class="top"><img class="lg" src="data:image/png;base64,${RECEIPT_LOGO_B64}" alt="${esc(name)}"><div class="vr"></div>
-<ul class="ct"><li>${ico("#25a244", PH)}${esc(wa)}</li><li>${ico("#d62828", PH)}${esc(phone2)}</li><li>${mail}${esc(co.email)}</li><li>${globe}${esc(site)}</li></ul>
+<div class="top"><img class="lg" src="data:image/png;base64,${RECEIPT_LOGO_B64}" alt="${esc(name)}">
 <div class="rt"><div class="pill">RECEIPT</div><div class="nr"><b>No.</b><span class="nb">${esc(d.no)}</span></div><div class="dr"><b>Date:</b><u>${esc(when)}</u></div></div></div>
+<ul class="ct"><li>${ico("#25a244", PH)}${esc(wa)}</li><li>${ico("#d62828", PH)}${esc(phone2)}</li><li>${mail}${esc(co.email)}</li><li>${globe}${esc(site)}</li></ul>
 <div class="svc">Dealers in ${d.services.map((x) => esc(x)).join("<i>|</i>")}${d.services.length ? "<i>|</i>etc..." : ""}</div><hr>
 ${fill("Received From:", d.name + (d.phone ? `  ·  ${String(d.phone).replace(/^\+/, "").replace(/^(254)(\d{3})(\d{3})(\d{3})$/, "+$1 $2 $3 $4")}` : ""))}
 ${fill("Amount:", `KSh ${amt}`)}
