@@ -42,12 +42,16 @@ services:
         sync: false
       - key: BANK_ACCOUNT_NUMBER
         sync: false
-      # AI report writer: set Dighaz's own key(s). REPORT_AI picks which one is used (openai or gemini).
+      # AI report writer: set Dighaz's own key(s). REPORT_AI=free shares the work between the free services (Gemini, Groq, Cerebras) so none hits its limit.
       - key: REPORT_AI
         sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
         sync: false
       # Company details printed on receipts, contracts and reports (all optional; sensible defaults are built in).
       - key: COMPANY_SIGNATORY_NAME

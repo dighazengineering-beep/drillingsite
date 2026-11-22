@@ -148,7 +148,7 @@ router.delete("/reports/:id/files/:fid", async (req, res) => { await pool.query(
 
 // the AI reads a section picture for the chosen station
 router.post("/reports/:id/analyse", async (req, res) => {
-  if (!claudeReady()) return void res.status(503).json({ error: "No AI key is set on the server yet (OPENAI_API_KEY or ANTHROPIC_API_KEY)." });
+  if (!claudeReady()) return void res.status(503).json({ error: "No AI key is set on the server yet (GEMINI_API_KEY, GROQ_API_KEY or CEREBRAS_API_KEY)." });
   const f = await fileBuf(Number(req.body?.fileId), id(req));
   if (!f) return void res.status(404).json({ error: "Picture not found" });
   try {
@@ -195,7 +195,7 @@ const running = new Set<number>();
 
 router.post("/reports/:id/generate", async (req, res) => {
   const rid = id(req);
-  if (!claudeReady()) return void res.status(503).json({ error: "No AI key is set on the server yet (OPENAI_API_KEY or ANTHROPIC_API_KEY)." });
+  if (!claudeReady()) return void res.status(503).json({ error: "No AI key is set on the server yet (GEMINI_API_KEY, GROQ_API_KEY or CEREBRAS_API_KEY)." });
   if (running.has(rid)) return void res.json({ ok: true, already: true });
   running.add(rid);
   res.json({ ok: true });

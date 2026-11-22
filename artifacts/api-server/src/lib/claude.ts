@@ -1,20 +1,36 @@
 /** Small Claude API client (plain fetch, no SDK). Reads ANTHROPIC_API_KEY. Web search is the API's own server tool; the sources it really opened are returned so references never come from the model's memory. */
-/** Which AI does the work: REPORT_AI=openai, gemini or anthropic forces one (when its key is set); otherwise the first key found: Claude, then OpenAI, then Gemini. */
+/**
+ * Which AI does the work. REPORT_AI=openai | anthropic | gemini forces that one. REPORT_AI=free (or auto) shares the work between the FREE services
+ * (Gemini, Groq, Cerebras) so none of them hits its limit. With no paid key set, any free keys are shared the same way automatically.
+ */
 const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
-export const provider = (): "anthropic" | "openai" | "gemini" => {
+const FREE_KEY: Record<string, () => string> = { gemini: geminiKey, groq: () => process.env.GROQ_API_KEY || "", cerebras: () => process.env.CEREBRAS_API_KEY || "" };
+const freeNames = () => (process.env.REPORT_AI_ORDER || "gemini,groq,cerebras").split(",").map((x) => x.trim().toLowerCase()).filter((n) => FREE_KEY[n]?.());
+export const provider = (): "anthropic" | "openai" | "gemini" | "pool" => {
   const f = (process.env.REPORT_AI || "").toLowerCase();
   if (f === "openai" && process.env.OPENAI_API_KEY) return "openai";
-  if (f === "gemini" && geminiKey()) return "gemini";
   if (f === "anthropic" && process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if ((f === "free" || f === "auto" || f === "pool") && freeNames().length) return "pool";
+  if (f === "gemini" && geminiKey()) return "gemini";
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   if (process.env.OPENAI_API_KEY) return "openai";
-  return geminiKey() ? "gemini" : "openai";
+  return freeNames().length ? "pool" : "openai";
 };
-export const claudeReady = () => !!(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || geminiKey());
+export const claudeReady = () => !!(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || freeNames().length);
 export const MODEL = () => process.env.REPORT_MODEL || "claude-sonnet-5-5";
 
 export interface Source { url: string; title: string }
 export interface ClaudeOut { text: string; sources: Source[]; searches: number; inTokens: number; outTokens: number }
+/** An AI service said no: the status and how long it asked us to wait, so the pool can move to another service. */
+class ProviderError extends Error {
+  constructor(public who: string, public status: number, body: string, retryAfter?: string | null) {
+    super(`${who} ${status}: ${body.slice(0, 300)}`);
+    const h = Number(retryAfter), m = /retryDelay\W+(\d+(?:\.\d+)?)s/.exec(body);
+    this.waitMs = Number.isFinite(h) && h > 0 ? h * 1000 : m ? Math.ceil(Number(m[1])) * 1000 : 0;
+    this.daily = /per day|daily|RPD|TPD|per-day/i.test(body);
+  }
+  waitMs = 0; daily = false;
+}
 type Block = { type: string; [k: string]: unknown };
 export type Msg = { role: "user" | "assistant"; content: string | Block[] };
 
@@ -51,7 +67,7 @@ async function openai(o: { system: string; messages: Msg[]; maxTokens?: number; 
 async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }): Promise<ClaudeOut> {
   const key = geminiKey();
   if (!key) throw new Error("GEMINI_API_KEY is not set on the server");
-  const model = o.model && /^gemini/i.test(o.model) ? o.model : process.env.GEMINI_MODEL || "gemini-2.5-pro";
+  const model = o.model && /^gemini/i.test(o.model) ? o.model : process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const contents = o.messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: typeof m.content === "string" ? [{ text: m.content }] : m.content.map((b) => {
@@ -67,7 +83,7 @@ async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; 
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": key, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(280_000),
   });
-  if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 300).replace(key, "[key]")}`);
+  if (!r.ok) throw new ProviderError("Gemini", r.status, (await r.text()).replace(key, "[key]"), r.headers.get("retry-after"));
   const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] }; groundingMetadata?: { groundingChunks?: { web?: { uri?: string; title?: string } }[]; webSearchQueries?: string[] } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } };
   const c = j.candidates?.[0]; const sources = new Map<string, string>();
   for (const ch of c?.groundingMetadata?.groundingChunks ?? []) if (ch.web?.uri) sources.set(ch.web.uri, ch.web.title ?? ch.web.uri);
@@ -75,10 +91,69 @@ async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; 
   return { text, sources: [...sources].map(([url, title]) => ({ url, title })), searches: c?.groundingMetadata?.webSearchQueries?.length ?? 0, inTokens: j.usageMetadata?.promptTokenCount ?? 0, outTokens: j.usageMetadata?.candidatesTokenCount ?? 0 };
 }
 
+/** Groq and Cerebras speak the same "chat completions" language. Text only: pictures and web search are left to Gemini. */
+async function chatCompat(who: string, base: string, key: string, model: string, o: { system: string; messages: Msg[]; maxTokens?: number }): Promise<ClaudeOut> {
+  const messages = [{ role: "system", content: o.system }, ...o.messages.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content.filter((b) => b.type === "text").map((b) => String(b.text ?? "")).join("\n") }))];
+  const r = await fetch(`${base}/chat/completions`, {
+    method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ model, messages, max_tokens: (o.maxTokens ?? 8000) + 2000, temperature: 0.3 }), signal: AbortSignal.timeout(280_000),
+  });
+  if (!r.ok) throw new ProviderError(who, r.status, (await r.text()).replace(key, "[key]"), r.headers.get("retry-after"));
+  const j = (await r.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+  return { text: j.choices?.[0]?.message?.content ?? "", sources: [], searches: 0, inTokens: j.usage?.prompt_tokens ?? 0, outTokens: j.usage?.completion_tokens ?? 0 };
+}
+
+type CallOpts = { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean };
+const ms = (name: string, d: number) => Number(process.env[name]) || d;
+/** Smallest pause between two calls to the same service (their free plans allow only a few requests a minute). */
+const GAP: Record<string, () => number> = { gemini: () => ms("GEMINI_GAP_MS", 6000), groq: () => ms("GROQ_GAP_MS", 4000), cerebras: () => ms("CEREBRAS_GAP_MS", 13000) };
+const cooling = new Map<string, number>(), lastUsed = new Map<string, number>();
+let turn = 0;
+const sleep = (t: number) => new Promise((r) => setTimeout(r, t));
+
+/** Shares the work between the free services: takes turns, spaces the calls out, and when one says "limit reached" it rests that one and carries on with the next. */
+async function pool(o: CallOpts): Promise<ClaudeOut> {
+  const names = freeNames();
+  const needs = !!o.search || o.messages.some((m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image"));
+  const skip = new Set<string>();
+  let last: unknown = new Error("No free AI service is available");
+  for (let attempt = 0; attempt < 10; attempt++) {
+    // Pictures and web search only work on Gemini; the others get the text part when Gemini is unavailable for too long.
+    let cands = names.filter((n) => !skip.has(n));
+    if (needs && cands.includes("gemini") && attempt < 5) cands = ["gemini"];
+    if (!cands.length) break;
+    const at = (n: string) => Math.max(cooling.get(n) ?? 0, (lastUsed.get(n) ?? 0) + GAP[n]());
+    const start = turn++ % cands.length;
+    const order = cands.map((n, i) => ({ n, t: at(n), i: (i - start + cands.length) % cands.length })).sort((a, b) => a.t - b.t || a.i - b.i);
+    const pick = order[0];
+    const wait = pick.t - Date.now();
+    if (wait > 120_000) { last = new Error(`All free AI services are resting (next one in ${Math.round(wait / 1000)}s)`); break; }
+    if (wait > 0) await sleep(wait);
+    lastUsed.set(pick.n, Date.now());
+    try {
+      const model = pick.n === "gemini" ? o.model && /^gemini/i.test(o.model) ? o.model : undefined : undefined;
+      if (pick.n === "gemini") return await gemini({ ...o, model });
+      const text = pick.n === "groq" ? { base: "https://api.groq.com/openai/v1", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile" } : { base: "https://api.cerebras.ai/v1", model: process.env.CEREBRAS_MODEL || "gpt-oss-120b" };
+      return await chatCompat(pick.n, text.base, FREE_KEY[pick.n](), text.model, o);
+    } catch (e) {
+      last = e;
+      const pe = e as ProviderError, st = pe.status ?? 0, msg = String((e as Error).message ?? "");
+      if (st === 413 || /too large|reduce the length|context length|maximum context|request_too_large/i.test(msg)) skip.add(pick.n);            // too big for this one, try another
+      else if (st === 401 || st === 403) cooling.set(pick.n, Date.now() + 3_600_000);                                                             // bad key
+      else if (st === 429 || /rate|quota|limit|exhaust/i.test(msg)) cooling.set(pick.n, Date.now() + (pe.daily ? 3_600_000 : Math.max(pe.waitMs || 0, 65_000)));
+      else if (st >= 500 || st === 0) cooling.set(pick.n, Date.now() + 30_000);                                                                   // service hiccup or timeout
+      else skip.add(pick.n);                                                                                                                      // refused this request (e.g. unknown model)
+      console.warn(`[ai] ${pick.n} failed (${st || "error"}): ${msg.slice(0, 160)}; trying another`);
+    }
+  }
+  throw last;
+}
+
 export async function claude(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }): Promise<ClaudeOut> {
   const pv = provider();
   if (pv === "openai") return openai(o);
   if (pv === "gemini") return gemini(o);
+  if (pv === "pool") return pool(o);
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set on the server");
   const messages: Msg[] = [...o.messages];
