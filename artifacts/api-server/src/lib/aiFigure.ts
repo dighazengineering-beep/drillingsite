@@ -1,7 +1,33 @@
-/** Conceptual figures drawn by the OpenAI image model (needs OPENAI_API_KEY). Returns null when no key is set or the call fails, and the report simply goes without that figure. */
+/** Conceptual figures drawn by the OpenAI image model when OPENAI_API_KEY is set, otherwise by Gemini (GEMINI_API_KEY). Returns null when no key is set or the call fails, and the report simply goes without that figure. */
+import { loadImage } from "@napi-rs/canvas";
+const geminiImgKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+
+/** Gemini's own picture maker (free plan where Google allows it). `refs` are pictures it may look at (the real field section, the layout sample). */
+async function geminiImage(prompt: string, refs: Buffer[] = [], ratio = "3:2"): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const key = geminiImgKey();
+  if (!key) return null;
+  const model = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+  const parts = [{ text: prompt }, ...refs.map((b) => ({ inlineData: { mimeType: "image/png", data: b.toString("base64") } }))];
+  for (const cfg of [{ responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratio } }, { responseModalities: ["IMAGE", "TEXT"] }]) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST", headers: { "x-goog-api-key": key, "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: cfg }), signal: AbortSignal.timeout(180_000),
+      });
+      if (!r.ok) { if (r.status === 400) continue; return null; }
+      const j = (await r.json()) as { candidates?: { content?: { parts?: { inlineData?: { data?: string } }[] } }[] };
+      const b64 = j.candidates?.[0]?.content?.parts?.find((x) => x.inlineData?.data)?.inlineData?.data;
+      if (!b64) return null;
+      const png = Buffer.from(b64, "base64");
+      try { const im = await loadImage(png); return { png, w: im.width, h: im.height }; } catch { return { png, w: 1536, h: 1024 }; }
+    } catch { return null; }
+  }
+  return null;
+}
+
 export async function aiFigure(prompt: string, size: "1536x1024" | "1024x1024" = "1536x1024"): Promise<{ png: Buffer; w: number; h: number } | null> {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
+  if (!key) return geminiImage(prompt, [], size === "1024x1024" ? "1:1" : "3:2");
   try {
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
@@ -37,11 +63,12 @@ export interface SectionFacts { station: string; zoneFrom: number; zoneTo: numbe
 /** Analysed picture of the machine screenshot, in the layout of the reference sample, drawn by the OpenAI image model. */
 export async function analysedSection(raw: Buffer, v: SectionFacts): Promise<{ png: Buffer; w: number; h: number } | null> {
   const key = process.env.OPENAI_API_KEY, ref = sample();
-  if (!key || !ref || process.env.ANALYSED_AI === "off") return null;
+  if (!ref || process.env.ANALYSED_AI === "off") return null;
   const prompt = `Image 1 is the REAL field section measured by a ${v.instrument || "groundwater resistivity"} instrument. Image 2 is ONLY a layout and style reference of a finished analysed picture: copy its layout, panels and styling, but NEVER copy its numbers, dates, station, depths, formation names or any of its text.
 Produce a new analysed picture of Image 1. Keep the contour pattern, the station positions along the top and the depth scale of Image 1 exactly as they are; do not redraw or invent different geology.
 Layout like Image 2: a blue title bar reading "INTERPRETED GEOELECTRIC SECTION (Groundwater Exploration)" with the survey date; station numbers along the top with the selected station boxed and a red vertical line down it; the depth axis; the resistivity colour scale at the right; two dashed red horizontal lines bounding the target aquifer zone with their depths written; bracket labels on the right for Overburden / Top Soil, Target Aquifer Zone and Deeper Zone; red dashed callout boxes (Horizontal positions, How to read, Where to drill, Drilling recommendation); a legend box (high resistivity, moderate, low); an INTERPRETATION SUMMARY table; and a NOTES box.
 Use exactly these values and no others (the client's own typed numbers; never replace them with depths you read from the picture): ${v.preferredDepth ? `drilling depth preferred ${v.preferredDepth} m, minimum ${v.minDepth ?? ""} m, maximum ${v.maxDepth ?? ""} m (draw these as green horizontal lines); ` : ""}selected station ${v.station}; target aquifer zone ${v.zoneFrom} to ${v.zoneTo} m; expected yield ${v.yieldText || "to be confirmed"}; method ${v.instrument || "groundwater resistivity survey"}; survey date ${v.surveyDate || "not recorded"}; reason for the choice: ${v.reason || "lowest resistivity zone along the line"}. ${v.layers ? `Layers supplied: ${v.layers}.` : "For aquifer type and formation write 'To be confirmed by drilling'."} Add the note that drilling is required for confirmation and that the yield is a target, not a guarantee. Text must be small, sharp and spelled correctly.`;
+  if (!key) return geminiImage(prompt, [raw, ref], "3:2");
   try {
     const fd = new FormData();
     fd.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-1");
