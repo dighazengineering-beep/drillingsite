@@ -64,7 +64,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
   const phone2 = (process.env.COMPANY_PHONE2 || "+254 110 699 444").trim();
   const wa = co.whatsapp ? `+${co.whatsapp}` : co.phone;
   const site = co.website.replace(/^https?:\/\//, "");
-  const ico = (bg: string, path: string) => `<svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="12" fill="${bg}"/><g transform="translate(4.5 4.5) scale(.62)" fill="#fff"><path d="${path}"/></g></svg>`;
+  const ico = (bg: string, path: string) => `<svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="12" fill="${bg}"/><g transform="translate(4.5 4.5) scale(.62)" fill="#fff"><path d="${path}"/></g></svg>`;
   const PH = "M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2z";
   const mail = `<svg viewBox="0 0 24 24" width="26" height="26"><rect x="1" y="5" width="22" height="14" rx="2" fill="#fff" stroke="#0b3a8c" stroke-width="1.6"/><path d="M2 6.5l10 7 10-7" fill="none" stroke="#0b3a8c" stroke-width="1.6"/></svg>`;
   const globe = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0b3a8c" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4.2" ry="10"/><path d="M2 12h20M4 7h16M4 17h16"/></svg>`;
@@ -92,7 +92,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .perf:after{content:"";position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,23,42,.07),transparent)}
 .sheet{--page:#e8edf4}.sheet.cap{--page:#fff}
 .top{display:flex;align-items:center;gap:12px}.lg{width:160px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:2px 0}
-.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0}.ct li{display:flex;align-items:center;gap:7px;font-weight:500;font-size:11px;color:var(--navy);margin:1px 0;white-space:nowrap}
+.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0;display:grid;grid-template-rows:auto auto;grid-auto-flow:column;gap:9px 16px;align-content:center;justify-content:start}.ct li{display:flex;align-items:center;gap:5px;font-weight:500;font-size:9.5px;color:var(--navy);margin:0;white-space:nowrap}
 .rt{flex:none;width:185px;text-align:left}.pill{background:var(--navy);color:#fff;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.06em;text-align:center;padding:5px 0;border-radius:8px}
 .nr{display:flex;align-items:center;gap:6px;margin-top:5px}.nr b,.dr b{font-weight:600;color:var(--navy);font-size:13px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:700 17px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a}
 .dr{display:flex;align-items:baseline;gap:8px;margin-top:3px}.dr u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);font-size:11px;color:var(--ink);padding:0 4px;white-space:nowrap}
