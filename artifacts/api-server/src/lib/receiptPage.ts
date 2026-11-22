@@ -64,7 +64,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
   const phone2 = (process.env.COMPANY_PHONE2 || "+254 110 699 444").trim();
   const wa = co.whatsapp ? `+${co.whatsapp}` : co.phone;
   const site = co.website.replace(/^https?:\/\//, "");
-  const ico = (bg: string, path: string) => `<svg viewBox="0 0 24 24" width="26" height="26"><circle cx="12" cy="12" r="12" fill="${bg}"/><g transform="translate(4.5 4.5) scale(.62)" fill="#fff"><path d="${path}"/></g></svg>`;
+  const ico = (bg: string, path: string) => `<svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="12" fill="${bg}"/><g transform="translate(4.5 4.5) scale(.62)" fill="#fff"><path d="${path}"/></g></svg>`;
   const PH = "M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2z";
   const mail = `<svg viewBox="0 0 24 24" width="26" height="26"><rect x="1" y="5" width="22" height="14" rx="2" fill="#fff" stroke="#0b3a8c" stroke-width="1.6"/><path d="M2 6.5l10 7 10-7" fill="none" stroke="#0b3a8c" stroke-width="1.6"/></svg>`;
   const globe = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0b3a8c" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4.2" ry="10"/><path d="M2 12h20M4 7h16M4 17h16"/></svg>`;
@@ -79,11 +79,11 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
   const ref = [d.reference ? `Ref: ${d.reference}` : "", d.note ?? ""].filter(Boolean).join(" · ");
   const amt = `${Math.round(d.amount).toLocaleString("en-KE")}/=`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Receipt ${esc(d.no)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+<title>Receipt ${esc(d.no)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
 :root{--navy:#0b3a8c;--ink:#0f172a;--mut:#475569;--hole:#cfd6e2}
-*{box-sizing:border-box}body{margin:0;background:#e8edf4;font:500 13px/1.4 Inter,"Helvetica Neue",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:16px 8px 24px}
+*{box-sizing:border-box}body{margin:0;background:#e8edf4;font:500 12.5px/1.25 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;padding:16px 8px 24px}
 .wrap{display:flex;justify-content:center}
-.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:18px 26px 14px 50px;overflow:hidden}
+.sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:11px 22px 7px 46px;overflow:hidden}
 /* the left edge of a receipt book: the torn perforation with its punched holes */
 .wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:400px 130px}
 .sheet>*:not(.wm):not(.perf){position:relative}
@@ -91,23 +91,23 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .perf:before{content:"";position:absolute;left:16px;top:0;bottom:0;border-left:1.5px dashed #c3ccdb}
 .perf:after{content:"";position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,rgba(15,23,42,.07),transparent)}
 .sheet{--page:#e8edf4}.sheet.cap{--page:#fff}
-.top{display:flex;align-items:center;gap:12px}.lg{width:215px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:2px 0}
-.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0}.ct li{display:flex;align-items:center;gap:7px;font-weight:600;font-size:11.5px;color:var(--navy);margin:3px 0;white-space:nowrap}
-.rt{flex:none;width:200px;text-align:left}.pill{background:var(--navy);color:#fff;font:800 30px/1 Inter,Arial,sans-serif;letter-spacing:.02em;text-align:center;padding:9px 0;border-radius:10px}
-.nr{display:flex;align-items:center;gap:8px;margin-top:9px}.nr b,.dr b{font-weight:700;color:var(--navy);font-size:16px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:800 22px/1.25 Inter,Arial,sans-serif;color:#d0202a}
-.dr{display:flex;align-items:baseline;gap:8px;margin-top:6px}.dr u{flex:1;text-decoration:none;border-bottom:1.5px solid var(--navy);font-size:12px;color:var(--ink);padding:0 4px;white-space:nowrap}
-.svc{text-align:center;font-weight:600;font-size:11.5px;color:var(--navy);margin:8px 0 7px;line-height:1.55}.svc i{font-style:normal;margin:0 6px}
-hr{border:0;border-top:2px solid var(--navy);margin:0 0 6px}
-.f{display:flex;align-items:flex-end;gap:10px;margin:11px 0}.f span{flex:none;width:150px;white-space:nowrap;font-weight:700;color:var(--navy);font-size:17px}.f u{flex:1;text-decoration:none;border-bottom:1.5px solid var(--navy);padding:0 6px 1px;font-size:13px;color:var(--ink);min-height:20px;font-weight:500}
-.mid{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-top:6px}.pmw{flex:1}
-.pmr{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.pmr>b{white-space:nowrap;font-weight:700;color:var(--navy);font-size:17px;flex:none}.bxs{display:flex;flex-wrap:wrap;gap:8px 16px}
-.bx{display:inline-flex;align-items:center;gap:7px;color:var(--navy);font-size:14px;font-weight:500}.bx i{width:18px;height:18px;border:1.6px solid var(--navy);border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font:800 13px/1 Arial,sans-serif;font-style:normal;color:#fff}.bx.on i{background:var(--navy)}.mp{color:#1a9a3c;font-weight:800;font-size:15px}
-.paid{display:flex;align-items:stretch;margin-top:16px;width:430px;max-width:100%;background:var(--navy);border-radius:12px;overflow:hidden;border:2px solid var(--navy)}.paid b{color:#fff;font:700 18px/1 Inter,Arial,sans-serif;padding:13px 14px;flex:none}.paid u{flex:1;text-decoration:none;background:#fff;border-radius:10px 0 0 10px;padding:8px 12px;font:800 19px/1.3 Inter,Arial,sans-serif;color:var(--ink)}
-.sg{flex:none;width:250px;text-align:center}.sg svg{width:240px;height:auto;display:block;margin:0 auto}.sg small{display:block;font-size:10.5px;color:var(--mut);margin-top:2px}
-.rf{font-size:10.5px;color:var(--mut);margin-top:8px}
-.foot{text-align:center;font-size:9.5px;color:var(--mut);margin-top:8px;border-top:1px solid #e2e8f0;padding-top:4px}
+.top{display:flex;align-items:center;gap:12px}.lg{width:160px;height:auto;flex:none;display:block}.vr{width:3px;align-self:stretch;background:var(--navy);margin:2px 0}
+.ct{list-style:none;margin:0;padding:0;flex:1;min-width:0}.ct li{display:flex;align-items:center;gap:7px;font-weight:500;font-size:11px;color:var(--navy);margin:1px 0;white-space:nowrap}
+.rt{flex:none;width:185px;text-align:left}.pill{background:var(--navy);color:#fff;font:700 22px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.06em;text-align:center;padding:5px 0;border-radius:8px}
+.nr{display:flex;align-items:center;gap:6px;margin-top:5px}.nr b,.dr b{font-weight:600;color:var(--navy);font-size:13px}.nb{flex:1;border:1.5px solid var(--navy);border-radius:8px;text-align:center;font:700 17px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:#d0202a}
+.dr{display:flex;align-items:baseline;gap:8px;margin-top:3px}.dr u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);font-size:11px;color:var(--ink);padding:0 4px;white-space:nowrap}
+.svc{text-align:center;font-weight:500;font-size:10.5px;color:var(--navy);margin:4px 0 3px;line-height:1.4}.svc i{font-style:normal;margin:0 6px}
+hr{border:0;border-top:1.5px solid var(--navy);margin:0 0 2px}
+.f{display:flex;align-items:flex-end;gap:8px;margin:5px 0}.f span{flex:none;width:112px;white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px}.f u{flex:1;text-decoration:none;border-bottom:1px solid var(--navy);padding:0 5px 0;font-size:12.5px;color:var(--ink);min-height:16px;font-weight:500}
+.mid{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:0}.pmw{flex:1}
+.pmr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:3px}.pmr>b{white-space:nowrap;font-weight:600;color:var(--navy);font-size:14px;flex:none}.bxs{display:flex;flex-wrap:wrap;gap:4px 12px}
+.bx{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:12.5px;font-weight:500}.bx i{width:14px;height:14px;border:1.3px solid var(--navy);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font:700 11px/1 Arial,sans-serif;font-style:normal;color:#fff}.bx.on i{background:var(--navy)}.mp{color:#1a9a3c;font-weight:700;font-size:13px}
+.paid{display:flex;align-items:stretch;margin-top:7px;width:330px;max-width:100%;background:var(--navy);border-radius:9px;overflow:hidden;border:1.5px solid var(--navy)}.paid b{color:#fff;font:600 14px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;padding:8px 10px;display:flex;align-items:center;flex:none}.paid u{flex:1;text-decoration:none;background:#fff;border-radius:7px 0 0 7px;padding:4px 10px;font:700 15px/1.3 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--ink)}
+.sg{flex:none;width:168px;text-align:center;margin-top:-6px}.sg svg{width:165px;height:auto;display:block;margin:0 auto}.sg small{display:block;font-size:9.5px;color:var(--mut);margin-top:0}
+.rf{font-size:10px;color:var(--mut);margin-top:3px}
+.foot{text-align:center;font-size:9px;color:var(--mut);margin-top:3px;border-top:1px solid #e2e8f0;padding-top:2px}
 .btns{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}.btns button{border:0;background:var(--navy);color:#fff;font:500 13px Inter,Arial,sans-serif;padding:11px 26px;border-radius:10px;cursor:pointer}.btns button.alt{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}.btns button:disabled{opacity:.6}.sheet.cap{box-shadow:none;border:0}
-@page{size:200mm 140mm;margin:4mm}@media print{.sheet{--page:#fff}body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
+@page{size:200mm 100mm;margin:4mm}@media print{.sheet{--page:#fff}body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
 ${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none;--page:#fff}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<div class="wrap"><div class="sheet" id="sh">
 <div class="wm"></div><div class="perf"></div>
 <div class="top"><img class="lg" src="data:image/png;base64,${RECEIPT_LOGO_B64}" alt="${esc(name)}"><div class="vr"></div>
@@ -118,8 +118,8 @@ ${fill("Received From:", d.name + (d.phone ? `  ·  ${String(d.phone).replace(/^
 ${fill("Amount:", `KSh ${amt}`)}
 ${fill("In Word:", amountInWords(d.amount))}
 ${fill("For:", forWhat)}
-<div class="mid"><div class="pmw"><div class="pmr"><b>Payment Method:</b><div class="bxs">${boxes}</div></div>
-<div class="paid"><b>Amount Paid:</b><u>KSh ${amt}</u></div></div>
+<div class="pmr"><b>Payment Method:</b><div class="bxs">${boxes}</div></div>
+<div class="mid"><div class="pmw"><div class="paid"><b>Amount Paid:</b><u>KSh ${amt}</u></div></div>
 <div class="sg">${stampSvg(stampDate(d.date))}<small>Received by: ${esc(by)}</small></div></div>
 ${ref ? `<div class="rf">${esc(ref)}</div>` : ""}
 <div class="foot">This receipt is computer generated and valid with the company stamp.</div>
