@@ -73,7 +73,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
   const forWhat = [d.item, d.stepLabel ? `- ${d.stepLabel}` : "", d.contractNo ? `, Contract ${d.contractNo}` : ""].join(" ").replace(/\s+,/g, ",").trim();
   const when = d.date.toLocaleDateString("en-KE", { timeZone: "Africa/Nairobi", day: "numeric", month: "long", year: "numeric" });
   const by = d.receivedBy || co.signatoryName;
-  const wmSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="190" viewBox="0 0 600 190"><text x="300" y="105" text-anchor="middle" transform="rotate(-18 300 95)" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="31" letter-spacing="1.5" fill="#0b3a8c" fill-opacity="0.13">${esc(name)}</text></svg>`;
+  const wmSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="64" viewBox="0 0 300 64"><text x="150" y="38" text-anchor="middle" transform="rotate(-8 150 34)" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="15" letter-spacing="1" fill="#0b3a8c" fill-opacity="0.12">${esc(name)}</text></svg>`;
   const wmTile = `data:image/svg+xml,${encodeURIComponent(wmSvg)}`;
   const fill = (label: string, v: string) => `<div class="f"><span>${label}</span><u>${esc(v)}</u></div>`;
   const ref = [d.reference ? `Ref: ${d.reference}` : "", d.note ?? ""].filter(Boolean).join(" · ");
@@ -85,7 +85,7 @@ export function receiptHtml(d: ReceiptData, embed = false, shareUrl = "", report
 .wrap{display:flex;justify-content:center}
 .sheet{width:760px;flex:none;background:linear-gradient(90deg,#f3f1ea 0,#fffefb 46px,#fff 90px);border:1px solid #cbd5e1;box-shadow:0 8px 26px rgba(15,23,42,.14);position:relative;padding:11px 22px 7px 46px;overflow:hidden}
 /* the left edge of a receipt book: the torn perforation with its punched holes */
-.wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:600px 190px}
+.wm{position:absolute;inset:0;pointer-events:none;background-image:url("${wmTile}");background-size:300px 64px}
 .sheet>*:not(.wm):not(.perf){position:relative}
 .perf{position:absolute;left:0;top:0;bottom:0;width:16px;background:radial-gradient(circle at 0 50%,var(--page) 0,var(--page) 7px,transparent 7.7px) 0 0/16px 21px repeat-y}
 .perf:before{content:"";position:absolute;left:16px;top:0;bottom:0;border-left:1.5px dashed #c3ccdb}
