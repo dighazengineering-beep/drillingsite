@@ -105,6 +105,7 @@ hr{border:0;border-top:1.5px solid var(--navy);margin:0}
 .paid{display:flex;align-items:stretch;margin-top:7px;width:330px;max-width:100%;background:var(--navy);border-radius:9px;overflow:hidden;border:1.5px solid var(--navy)}.paid b{color:#fff;font:600 14px/1 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;padding:8px 10px;display:flex;align-items:center;flex:none}.paid u{flex:1;text-decoration:none;background:#fff;border-radius:7px 0 0 7px;padding:4px 10px;font:700 15px/1.3 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--ink)}
 .sg{flex:none;width:168px;text-align:center;margin-top:-6px}.sg svg{width:165px;height:auto;display:block;margin:0 auto}.sg small{display:block;font-size:9.5px;color:var(--mut);margin-top:0}
 .rf{font-size:10px;color:var(--mut);margin-top:3px}
+.thx{text-align:center;font:600 13px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--navy);letter-spacing:.02em;margin-top:6px}.thx small{display:block;font-weight:500;font-size:10px;color:var(--mut);letter-spacing:0;margin-top:1px}
 .foot{text-align:center;font-size:9px;color:var(--mut);margin-top:3px;border-top:1px solid #e2e8f0;padding-top:2px}
 .btns{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}.btns button{border:0;background:var(--navy);color:#fff;font:500 13px Inter,Arial,sans-serif;padding:11px 26px;border-radius:10px;cursor:pointer}.btns button.alt{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}.btns button:disabled{opacity:.6}.sheet.cap{box-shadow:none;border:0}
 @page{size:200mm 100mm;margin:4mm}@media print{.sheet{--page:#fff}body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
@@ -122,6 +123,7 @@ ${fill("For:", forWhat)}
 <div class="mid"><div class="pmw"><div class="paid"><b>Amount Paid:</b><u>KSh ${amt}</u></div></div>
 <div class="sg">${stampSvg(stampDate(d.date))}<small>Received by: ${esc(by)}</small></div></div>
 ${ref ? `<div class="rf">${esc(ref)}</div>` : ""}
+<div class="thx">Thank you for choosing ${esc(name)}<small>Water for life. We drill, you drink.</small></div>
 <div class="foot">This receipt is computer generated and valid with the company stamp.</div>
 </div></div>${embed ? "" : `<div class="btns"><button id="dl">Download PDF</button>${shareButtons([{ label: "Copy link", url: shareUrl }], `Receipt ${d.no}`)}</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
