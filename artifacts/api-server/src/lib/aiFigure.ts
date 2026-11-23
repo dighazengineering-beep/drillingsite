@@ -1,11 +1,14 @@
 /** Conceptual figures drawn by the OpenAI image model when OPENAI_API_KEY is set, otherwise by Gemini (GEMINI_API_KEY). Returns null when no key is set or the call fails, and the report simply goes without that figure. */
 import { loadImage } from "@napi-rs/canvas";
-const geminiImgKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+import { geminiKeys } from "./claude";
+let imgTurn = 0;
 
 /** Gemini's own picture maker (free plan where Google allows it). `refs` are pictures it may look at (the real field section, the layout sample). */
-async function geminiImage(prompt: string, refs: Buffer[] = [], ratio = "3:2"): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const key = geminiImgKey();
-  if (!key) return null;
+async function geminiImage(prompt: string, refs: Buffer[] = [], ratio = "3:2", tries = 0): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const all = geminiKeys();
+  if (!all.length) return null;
+  // Take turns between the Gemini keys; if one is out of quota, the next attempt below uses another.
+  const key = all[imgTurn++ % all.length];
   const model = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
   const parts = [{ text: prompt }, ...refs.map((b) => ({ inlineData: { mimeType: "image/png", data: b.toString("base64") } }))];
   for (const cfg of [{ responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratio } }, { responseModalities: ["IMAGE", "TEXT"] }]) {
@@ -14,7 +17,7 @@ async function geminiImage(prompt: string, refs: Buffer[] = [], ratio = "3:2"): 
         method: "POST", headers: { "x-goog-api-key": key, "content-type": "application/json" },
         body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: cfg }), signal: AbortSignal.timeout(180_000),
       });
-      if (!r.ok) { if (r.status === 400) continue; return null; }
+      if (!r.ok) { if (r.status === 400) continue; if ((r.status === 429 || r.status === 403) && tries < all.length - 1) return geminiImage(prompt, refs, ratio, tries + 1); return null; }
       const j = (await r.json()) as { candidates?: { content?: { parts?: { inlineData?: { data?: string } }[] } }[] };
       const b64 = j.candidates?.[0]?.content?.parts?.find((x) => x.inlineData?.data)?.inlineData?.data;
       if (!b64) return null;

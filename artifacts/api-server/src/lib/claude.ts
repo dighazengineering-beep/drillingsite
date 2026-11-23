@@ -3,9 +3,16 @@
  * Which AI does the work. REPORT_AI=openai | anthropic | gemini forces that one. REPORT_AI=free (or auto) shares the work between the FREE services
  * (Gemini, Groq, Cerebras) so none of them hits its limit. With no paid key set, any free keys are shared the same way automatically.
  */
-const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
-const FREE_KEY: Record<string, () => string> = { gemini: geminiKey, groq: () => process.env.GROQ_API_KEY || "", cerebras: () => process.env.CEREBRAS_API_KEY || "" };
-const freeNames = () => (process.env.REPORT_AI_ORDER || "gemini,groq,cerebras").split(",").map((x) => x.trim().toLowerCase()).filter((n) => FREE_KEY[n]?.());
+/** Each service may have SEVERAL keys (from different accounts) in one box, separated by commas: key1,key2,key3. Every key has its own limits, so more keys means more room. */
+const splitKeys = (v?: string) => [...new Set((v || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean))];
+const ENV_KEYS: Record<string, () => string[]> = {
+  gemini: () => [...new Set([...splitKeys(process.env.GEMINI_API_KEY), ...splitKeys(process.env.GOOGLE_API_KEY)])],
+  groq: () => splitKeys(process.env.GROQ_API_KEY),
+  cerebras: () => splitKeys(process.env.CEREBRAS_API_KEY),
+};
+export const geminiKeys = ENV_KEYS.gemini;
+const geminiKey = () => geminiKeys()[0] || "";
+const freeNames = () => (process.env.REPORT_AI_ORDER || "gemini,groq,cerebras").split(",").map((x) => x.trim().toLowerCase()).filter((n) => ENV_KEYS[n]?.().length);
 export const provider = (): "anthropic" | "openai" | "gemini" | "pool" => {
   const f = (process.env.REPORT_AI || "").toLowerCase();
   if (f === "openai" && process.env.OPENAI_API_KEY) return "openai";
@@ -64,8 +71,8 @@ async function openai(o: { system: string; messages: Msg[]; maxTokens?: number; 
 }
 
 /** Google Gemini (generateContent). Web search is Google Search grounding; the pages it used are returned as the sources. */
-async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }): Promise<ClaudeOut> {
-  const key = geminiKey();
+async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }, useKey?: string): Promise<ClaudeOut> {
+  const key = useKey || geminiKey();
   if (!key) throw new Error("GEMINI_API_KEY is not set on the server");
   const model = o.model && /^gemini/i.test(o.model) ? o.model : process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const contents = o.messages.map((m) => ({
@@ -113,37 +120,36 @@ const sleep = (t: number) => new Promise((r) => setTimeout(r, t));
 
 /** Shares the work between the free services: takes turns, spaces the calls out, and when one says "limit reached" it rests that one and carries on with the next. */
 async function pool(o: CallOpts): Promise<ClaudeOut> {
-  const names = freeNames();
+  // One slot per key: two Gemini keys are two slots, each with its own pause and its own limit.
+  const slots = freeNames().flatMap((n) => ENV_KEYS[n]().map((key, i) => ({ id: `${n}#${i}`, n, key })));
   const needs = !!o.search || o.messages.some((m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image"));
   const skip = new Set<string>();
   let last: unknown = new Error("No free AI service is available");
-  for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 12; attempt++) {
     // Pictures and web search only work on Gemini; the others get the text part when Gemini is unavailable for too long.
-    let cands = names.filter((n) => !skip.has(n));
-    if (needs && cands.includes("gemini") && attempt < 5) cands = ["gemini"];
+    let cands = slots.filter((s) => !skip.has(s.n));
+    if (needs && cands.some((s) => s.n === "gemini") && attempt < 6) cands = cands.filter((s) => s.n === "gemini");
     if (!cands.length) break;
-    const at = (n: string) => Math.max(cooling.get(n) ?? 0, (lastUsed.get(n) ?? 0) + GAP[n]());
+    const at = (s: { id: string; n: string }) => Math.max(cooling.get(s.id) ?? 0, (lastUsed.get(s.id) ?? 0) + GAP[s.n]());
     const start = turn++ % cands.length;
-    const order = cands.map((n, i) => ({ n, t: at(n), i: (i - start + cands.length) % cands.length })).sort((a, b) => a.t - b.t || a.i - b.i);
-    const pick = order[0];
-    const wait = pick.t - Date.now();
+    const order = cands.map((s, i) => ({ s, t: at(s), i: (i - start + cands.length) % cands.length })).sort((a, b) => a.t - b.t || a.i - b.i);
+    const pick = order[0].s, wait = order[0].t - Date.now();
     if (wait > 120_000) { last = new Error(`All free AI services are resting (next one in ${Math.round(wait / 1000)}s)`); break; }
     if (wait > 0) await sleep(wait);
-    lastUsed.set(pick.n, Date.now());
+    lastUsed.set(pick.id, Date.now());
     try {
-      const model = pick.n === "gemini" ? o.model && /^gemini/i.test(o.model) ? o.model : undefined : undefined;
-      if (pick.n === "gemini") return await gemini({ ...o, model });
+      if (pick.n === "gemini") return await gemini({ ...o, model: o.model && /^gemini/i.test(o.model) ? o.model : undefined }, pick.key);
       const text = pick.n === "groq" ? { base: "https://api.groq.com/openai/v1", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile" } : { base: "https://api.cerebras.ai/v1", model: process.env.CEREBRAS_MODEL || "gpt-oss-120b" };
-      return await chatCompat(pick.n, text.base, FREE_KEY[pick.n](), text.model, o);
+      return await chatCompat(pick.n, text.base, pick.key, text.model, o);
     } catch (e) {
       last = e;
       const pe = e as ProviderError, st = pe.status ?? 0, msg = String((e as Error).message ?? "");
-      if (st === 413 || /too large|reduce the length|context length|maximum context|request_too_large/i.test(msg)) skip.add(pick.n);            // too big for this one, try another
-      else if (st === 401 || st === 403) cooling.set(pick.n, Date.now() + 3_600_000);                                                             // bad key
-      else if (st === 429 || /rate|quota|limit|exhaust/i.test(msg)) cooling.set(pick.n, Date.now() + (pe.daily ? 3_600_000 : Math.max(pe.waitMs || 0, 65_000)));
-      else if (st >= 500 || st === 0) cooling.set(pick.n, Date.now() + 30_000);                                                                   // service hiccup or timeout
+      if (st === 413 || /too large|reduce the length|context length|maximum context|request_too_large/i.test(msg)) skip.add(pick.n);            // too big for this service, try another
+      else if (st === 401 || st === 403) cooling.set(pick.id, Date.now() + 3_600_000);                                                            // bad key
+      else if (st === 429 || /rate|quota|limit|exhaust/i.test(msg)) cooling.set(pick.id, Date.now() + (pe.daily ? 3_600_000 : Math.max(pe.waitMs || 0, 65_000)));
+      else if (st >= 500 || st === 0) cooling.set(pick.id, Date.now() + 30_000);                                                                  // service hiccup or timeout
       else skip.add(pick.n);                                                                                                                      // refused this request (e.g. unknown model)
-      console.warn(`[ai] ${pick.n} failed (${st || "error"}): ${msg.slice(0, 160)}; trying another`);
+      console.warn(`[ai] ${pick.id} failed (${st || "error"}): ${msg.slice(0, 160)}; trying another`);
     }
   }
   throw last;
