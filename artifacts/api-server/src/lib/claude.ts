@@ -70,11 +70,15 @@ async function openai(o: { system: string; messages: Msg[]; maxTokens?: number; 
   return { text, sources: [...sources].map(([url, title]) => ({ url, title })), searches, inTokens: j.usage?.input_tokens ?? 0, outTokens: j.usage?.output_tokens ?? 0 };
 }
 
+/** Google retires Gemini models too (gemini-2.5-flash is closed to new accounts). Newest first; if one says "no longer available" we move to the next and remember it. GEMINI_MODEL still wins if set. */
+const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+let geminiAt = 0;
+const geminiModel = () => process.env.GEMINI_MODEL || GEMINI_MODELS[Math.min(geminiAt, GEMINI_MODELS.length - 1)];
 /** Google Gemini (generateContent). Web search is Google Search grounding; the pages it used are returned as the sources. */
 async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }, useKey?: string): Promise<ClaudeOut> {
   const key = useKey || geminiKey();
   if (!key) throw new Error("GEMINI_API_KEY is not set on the server");
-  const model = o.model && /^gemini/i.test(o.model) ? o.model : process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = o.model && /^gemini/i.test(o.model) ? o.model : geminiModel();
   const contents = o.messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: typeof m.content === "string" ? [{ text: m.content }] : m.content.map((b) => {
@@ -87,9 +91,16 @@ async function gemini(o: { system: string; messages: Msg[]; maxTokens?: number; 
     generationConfig: { maxOutputTokens: (o.maxTokens ?? 8000) + 4000, thinkingConfig: { thinkingBudget: 1024 }, ...(o.json && !o.search ? { responseMimeType: "application/json" } : {}) },
   };
   if (o.search) body.tools = [{ google_search: {} }];
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const send = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": key, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(280_000),
   });
+  let r = await send();
+  if (r.status === 400) {
+    // some newer models do not accept this thinking setting: ask again without it
+    const t = await r.text();
+    if (/thinking/i.test(t)) { delete (body.generationConfig as Record<string, unknown>).thinkingConfig; r = await send(); }
+    else throw new ProviderError("Gemini", 400, t.replace(key, "[key]"), null);
+  }
   if (!r.ok) throw new ProviderError("Gemini", r.status, (await r.text()).replace(key, "[key]"), r.headers.get("retry-after"));
   const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] }; groundingMetadata?: { groundingChunks?: { web?: { uri?: string; title?: string } }[]; webSearchQueries?: string[] } }[]; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } };
   const c = j.candidates?.[0]; const sources = new Map<string, string>();
@@ -154,6 +165,7 @@ async function pool(o: CallOpts): Promise<ClaudeOut> {
       else if (st === 401 || st === 403) cooling.set(pick.id, Date.now() + 3_600_000);                                                            // bad key
       else if (st === 429 || /rate|quota|limit|exhaust/i.test(msg)) cooling.set(pick.id, Date.now() + (pe.daily ? 3_600_000 : Math.max(pe.waitMs || 0, 65_000)));
       else if (st >= 500 || st === 0) cooling.set(pick.id, Date.now() + 30_000);                                                                  // service hiccup or timeout
+      else if (pick.n === "gemini" && st === 404 && !process.env.GEMINI_MODEL && !(o.model && /^gemini/i.test(o.model)) && geminiAt < GEMINI_MODELS.length - 1) { geminiAt++; console.warn(`[ai] gemini model gone, switching to ${geminiModel()}`); }
       else if (pick.n === "groq" && /model/i.test(msg) && (st === 404 || /not exist|not found|decommission/i.test(msg)) && !process.env.GROQ_MODEL && groqAt < GROQ_MODELS.length - 1) { groqAt++; console.warn(`[ai] groq model gone, switching to ${groqModel()}`); }
       else skip.add(pick.n);                                                                                                                      // refused this request (e.g. unknown model)
       console.warn(`[ai] ${pick.id} failed (${st || "error"}): ${msg.slice(0, 160)}; trying another`);
