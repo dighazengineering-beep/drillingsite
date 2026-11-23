@@ -25,7 +25,7 @@ export function GoogleFill({ onFill }: { onFill: (r: GoogleInfo) => void }) {
             onFill(j as GoogleInfo); setMsg("Added from Google. You can change anything.");
           } catch (e) { setMsg((e as Error).message); }
         } });
-        box.current.innerHTML = ""; g.accounts.id.renderButton(box.current, { theme: "outline", size: "medium", width: 240, text: "continue_with", shape: "rectangular" });
+        box.current.innerHTML = ""; g.accounts.id.renderButton(box.current, { theme: "outline", size: "medium", width: 180, text: "signin_with", shape: "pill" });
       };
       if ((window as any).google) { init(); return; }
       const sc = document.createElement("script"); sc.src = "https://accounts.google.com/gsi/client"; sc.async = true; sc.onload = init; document.head.appendChild(sc);
@@ -35,8 +35,10 @@ export function GoogleFill({ onFill }: { onFill: (r: GoogleInfo) => void }) {
   if (!on) return null;
   return (
     <div className="sm:col-span-2">
-      <p className="mb-1 text-[11px] text-muted-foreground">Optional: fill the name, email and your earlier details from Google.</p>
-      <div ref={box} />
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border border-dashed border-border px-3 py-2">
+        <p className="min-w-0 flex-1 text-xs leading-snug text-muted-foreground"><span className="font-semibold text-foreground">Save typing.</span> Fill the name, email and earlier details from Google. Optional.</p>
+        <div ref={box} className="h-[34px] w-[180px] shrink-0 overflow-hidden" style={{ colorScheme: "light" }} />
+      </div>
       {msg && <p className="mt-1 text-[11px] text-muted-foreground">{msg}</p>}
     </div>
   );
