@@ -80,6 +80,8 @@ router.get("/reports/prefill", admin, async (req, res) => { try { res.json({ dat
 router.use("/reports", admin, async (_q, _s, next) => { try { await ensure(); next(); } catch (e) { next(e); } });
 
 const id = (req: Request) => Number(req.params.id) || 0;
+// The Project ID is made as soon as the county is known (county code + year + running number), so it is already in the box and can still be edited.
+router.get("/reports/:id/ref", async (req, res) => { try { res.json({ ref: await referenceFor(id(req), String(req.query.county ?? "")) }); } catch (e) { res.status(500).json({ error: (e as Error).message }); } });
 const getData = async (rid: number) => (await pool.query("SELECT data FROM hydro_reports WHERE id=$1", [rid])).rows[0]?.data as Record<string, any> | undefined;
 const setData = (rid: number, d: unknown) => pool.query("UPDATE hydro_reports SET data=$2, updated_at=now() WHERE id=$1", [rid, JSON.stringify(d)]);
 /** 254712345678 or 0712345678 -> "+254 712 345 678"; other countries keep their own code with a plus */

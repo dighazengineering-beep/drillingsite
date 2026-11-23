@@ -268,6 +268,14 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
   const dirty = useRef(false);
+  // Project ID: made automatically as soon as the county is known; it stays editable.
+  useEffect(() => {
+    const county = String(d.county ?? "").trim();
+    if (!county || String(d.projectId ?? "").trim()) return;
+    let off = false;
+    fetch(`${API}/api/reports/${id}/ref?county=${encodeURIComponent(county)}`, { headers: h }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (!off && j?.ref) { dirty.current = true; setD((x) => (String(x.projectId ?? "").trim() ? x : { ...x, projectId: j.ref })); } }).catch(() => {});
+    return () => { off = true; };
+  }, [d.county, d.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Fills the empty boxes from what the same email typed in earlier reports. */
   const fillEmpty = (data: Record<string, string>) => { dirty.current = true; setD((x) => { const n: Record<string, unknown> = { ...x }; for (const [k, v] of Object.entries(data)) if (v && !String(n[k] ?? "").trim()) n[k] = v; return n as typeof x; }); };
   const fromEmail = async (email: string) => { if (!/.+@.+\..+/.test(email)) return; try { const r = await fetch(`${API}/api/reports/prefill?email=${encodeURIComponent(email)}`, { headers: h }); if (r.ok) fillEmpty((await r.json()).data ?? {}); } catch { /* optional */ } };
@@ -401,7 +409,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
 
       <section className={box}><h3 className="mb-3 font-bold text-foreground">1. Title page</h3>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div><label className={lab}>Project ID</label><input className={`${inp} opacity-70`} readOnly value={d.projectId ?? ""} placeholder="Automatic (e.g. HGR-NRB-2026-001), made when the report is written" /></div>{T("siteRef", "Project / site reference", "e.g. Bura Mwatate")}
+          <div><label className={lab}>Project ID</label><input className={inp} value={String(d.projectId ?? "")} onChange={(e) => set("projectId", e.target.value)} placeholder="Fills in by itself once the county is chosen" /></div>{T("siteRef", "Project / site reference", "e.g. Bura Mwatate")}
           <GoogleFill onFill={(g) => fillEmpty({ clientName: g.name, clientEmail: g.email, ...g.data })} />
           {T("clientName", "Client name")}<div><label className={lab}>Client phone</label><PhoneField value={String(d.clientPhone ?? "")} onChange={(v) => set("clientPhone", v)} className={inp} /></div>
           <div><label className={lab}>Client email</label><input className={inp} type="email" value={String(d.clientEmail ?? "")} onChange={(e) => set("clientEmail", e.target.value)} onBlur={() => void fromEmail(String(d.clientEmail ?? ""))} placeholder="Past details fill in from this email" /></div>{T("sponsor", "Project sponsor")}
