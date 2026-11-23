@@ -131,7 +131,9 @@ async function pool(o: CallOpts): Promise<ClaudeOut> {
   let last: unknown = new Error("No free AI service is available");
   for (let attempt = 0; attempt < 12; attempt++) {
     // Pictures and web search only work on Gemini; the others get the text part when Gemini is unavailable for too long.
-    let cands = slots.filter((s) => !skip.has(s.n));
+    // Groq's free plan allows only about 8,000 tokens per minute in one request, so big requests are left to Gemini (Groq still takes the small ones).
+    const big = Math.ceil(JSON.stringify([o.system, o.messages.map((m) => (typeof m.content === "string" ? m.content : m.content.map((b) => (b.type === "text" ? b.text : "")).join(" ")))]).length / 3.2) > 6000;
+    let cands = slots.filter((s) => !skip.has(s.n) && !(big && s.n === "groq" && slots.some((x) => x.n !== "groq")));
     if (needs && cands.some((s) => s.n === "gemini") && attempt < 6) cands = cands.filter((s) => s.n === "gemini");
     if (!cands.length) break;
     const at = (s: { id: string; n: string }) => Math.max(cooling.get(s.id) ?? 0, (lastUsed.get(s.id) ?? 0) + GAP[s.n]());
