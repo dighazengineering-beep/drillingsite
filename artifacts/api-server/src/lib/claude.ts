@@ -178,7 +178,14 @@ export async function claude(o: { system: string; messages: Msg[]; maxTokens?: n
   const pv = provider();
   if (pv === "openai") return openai(o);
   if (pv === "gemini") return gemini(o);
-  if (pv === "pool") return pool(o);
+  if (pv === "pool") {
+    // the free services first; if every one of them fails or is resting and an OpenAI key is set, OpenAI finishes the job
+    try { return await pool(o); } catch (e) {
+      if (!process.env.OPENAI_API_KEY) throw e;
+      console.warn(`[ai] free services failed (${String((e as Error).message).slice(0, 120)}); using OpenAI`);
+      return openai({ ...o, model: undefined });
+    }
+  }
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set on the server");
   const messages: Msg[] = [...o.messages];
