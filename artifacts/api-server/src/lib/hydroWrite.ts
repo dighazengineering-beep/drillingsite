@@ -9,6 +9,8 @@ export type Flow = { p: string } | { table: { caption: string; head: string[]; r
 export interface Sec { id: string; num: string; title: string; level: 1 | 2 | 3; words?: number; guide?: string; lead?: boolean }
 
 const T = (cols: string, rows: string) => `Include a TABLE (columns: ${cols}) with ${rows}.`;
+/** Plain, low-risk sections (what a term means, the standards, how the method works): the free AIs write these when OpenAI is the main writer. */
+const SIMPLE_SECTIONS = new Set(["1.2", "1.3", "4.2.1", "4.2.2", "4.2.3", "4.2.5", "5.1", "5.3", "8"]);
 export const SURVEY_SECTIONS: Sec[] = [
   { id: "exec", num: "", title: "EXECUTIVE SUMMARY", level: 1, words: 260, guide: "3 paragraphs: the purpose of the study and where it was done (client, site, instrument); the key findings (recommended station, target aquifer zone, expected yield and the minimum, maximum and preferred drilling depths, exactly as supplied); and the recommended next steps (drilling, casing, development, pumping test, water-quality analysis). No other numbers." },
   { id: "1", num: "1.0", title: "INTRODUCTION", level: 1 },
@@ -257,7 +259,7 @@ export async function writeReport(ctx: { data: unknown; facts: Facts; seed: stri
     return [{ type: "text", text: text + note }, ...imgs.flatMap((i) => [{ type: "text", text: i.label }, { type: "image", source: { type: "base64", media_type: "image/png", data: i.b64 } }])];
   };
   const run = async (want: string[], prior = "", fix = "") => {
-    const out = await claude({ system: `${MASTER_PROMPT}\n\n${RULES}`, maxTokens: 9000, json: true, messages: [{ role: "user", content: userContent(want, body(want, prior) + (fix ? `\n\nYour previous version of this section was rejected by the checker: ${fix} Rewrite the whole section.` : "")) }] });
+    const out = await claude({ system: `${MASTER_PROMPT}\n\n${RULES}`, maxTokens: 9000, json: true, tier: want.every((w) => SIMPLE_SECTIONS.has(w)) ? "simple" : undefined, messages: [{ role: "user", content: userContent(want, body(want, prior) + (fix ? `\n\nYour previous version of this section was rejected by the checker: ${fix} Rewrite the whole section.` : "")) }] });
     lastRaw = out.text;
     let j: Record<string, unknown> = {};
     try { j = parseJson<Record<string, unknown>>(out.text); } catch { console.warn(`[report] reply was not JSON: ${out.text.slice(0, 200)}`); }
@@ -307,7 +309,7 @@ export async function writeReport(ctx: { data: unknown; facts: Facts; seed: stri
     step++; await say("Writing the report… Glossary");
     for (let a = 0; a < 2; a++) {
       try {
-        const out = await claude({ system: "You write the glossary of a hydrogeological survey report for a Kenyan borehole company. Output one JSON object only.", maxTokens: 3000, messages: [{ role: "user", content: `${projectBrief(ctx.data as Brief)}\n\nWrite a glossary of 20 to 30 technical terms and abbreviations that appear in a report on this project (resistivity, aquifer, transmissivity, static water level, casing, gravel pack, the survey instrument, TDS, m bgl and similar). Each meaning is one clear sentence in plain scientific English with no invented figures.\nOUTPUT: {"glossary": [{"term": "...", "meaning": "..."}]}` }] });
+        const out = await claude({ system: "You write the glossary of a hydrogeological survey report for a Kenyan borehole company. Output one JSON object only.", maxTokens: 3000, tier: "simple", messages: [{ role: "user", content: `${projectBrief(ctx.data as Brief)}\n\nWrite a glossary of 20 to 30 technical terms and abbreviations that appear in a report on this project (resistivity, aquifer, transmissivity, static water level, casing, gravel pack, the survey instrument, TDS, m bgl and similar). Each meaning is one clear sentence in plain scientific English with no invented figures.\nOUTPUT: {"glossary": [{"term": "...", "meaning": "..."}]}` }] });
         const j = parseJson<{ glossary?: { term?: unknown; meaning?: unknown }[] }>(out.text);
         const g = (j.glossary ?? []).filter((x) => x && x.term && x.meaning).map((x) => [String(x.term), String(x.meaning)] as [string, string]);
         if (g.length >= 15) { extra.glossary = g.slice(0, 30); return; }

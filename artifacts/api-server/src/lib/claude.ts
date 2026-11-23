@@ -13,8 +13,9 @@ const ENV_KEYS: Record<string, () => string[]> = {
 export const geminiKeys = ENV_KEYS.gemini;
 const geminiKey = () => geminiKeys()[0] || "";
 const freeNames = () => (process.env.REPORT_AI_ORDER || "gemini,groq,cerebras").split(",").map((x) => x.trim().toLowerCase()).filter((n) => ENV_KEYS[n]?.().length);
-export const provider = (): "anthropic" | "openai" | "gemini" | "pool" => {
+export const provider = (): "anthropic" | "openai" | "gemini" | "pool" | "hybrid" => {
   const f = (process.env.REPORT_AI || "").toLowerCase();
+  if (f === "hybrid" && process.env.OPENAI_API_KEY) return freeNames().length ? "hybrid" : "openai";
   if (f === "openai" && process.env.OPENAI_API_KEY) return "openai";
   if (f === "anthropic" && process.env.ANTHROPIC_API_KEY) return "anthropic";
   if ((f === "free" || f === "auto" || f === "pool") && freeNames().length) return "pool";
@@ -121,7 +122,7 @@ async function chatCompat(who: string, base: string, key: string, model: string,
   return { text: j.choices?.[0]?.message?.content ?? "", sources: [], searches: 0, inTokens: j.usage?.prompt_tokens ?? 0, outTokens: j.usage?.completion_tokens ?? 0 };
 }
 
-type CallOpts = { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean };
+type CallOpts = { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean; /** "simple" = plain, low-risk writing that the free services can do; OpenAI keeps the rest. */ tier?: "simple" };
 const ms = (name: string, d: number) => Number(process.env[name]) || d;
 /** Smallest pause between two calls to the same service (their free plans allow only a few requests a minute). */
 const GAP: Record<string, () => number> = { gemini: () => ms("GEMINI_GAP_MS", 6000), groq: () => ms("GROQ_GAP_MS", 4000), cerebras: () => ms("CEREBRAS_GAP_MS", 13000) };
@@ -174,8 +175,19 @@ async function pool(o: CallOpts): Promise<ClaudeOut> {
   throw last;
 }
 
-export async function claude(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }): Promise<ClaudeOut> {
+export async function claude(o: CallOpts): Promise<ClaudeOut> {
   const pv = provider();
+  if (pv === "hybrid") {
+    // OpenAI does the main work. Plain, simple writing goes to the free services first. Whichever side fails, the other finishes the job.
+    const hasPicture = o.messages.some((m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image"));
+    const toFree = o.tier === "simple" && !o.search && !hasPicture;
+    const ai = (x: CallOpts) => openai({ ...x, model: x.model && /^gemini/i.test(x.model) ? undefined : x.model });
+    const first = toFree ? () => pool(o) : () => ai(o), second = toFree ? () => ai(o) : () => pool(o);
+    try { return await first(); } catch (e) {
+      console.warn(`[ai] ${toFree ? "free services" : "OpenAI"} failed (${String((e as Error).message).slice(0, 120)}); trying ${toFree ? "OpenAI" : "the free services"}`);
+      return second();
+    }
+  }
   if (pv === "openai") return openai(o);
   if (pv === "gemini") return gemini(o);
   if (pv === "pool") {
