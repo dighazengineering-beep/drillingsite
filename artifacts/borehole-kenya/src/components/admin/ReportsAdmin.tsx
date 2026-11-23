@@ -397,7 +397,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
 
       <section className={box}><h3 className="mb-3 font-bold text-foreground">1. Title page</h3>
         <div className="grid gap-3 sm:grid-cols-2">
-          {T("projectId", "Project ID")}{T("siteRef", "Project / site reference", "e.g. Bura Mwatate")}
+          <div><label className={lab}>Project ID</label><input className={`${inp} opacity-70`} readOnly value={d.projectId ?? ""} placeholder="Automatic (e.g. HGR-NRB-2026-001), made when the report is written" /></div>{T("siteRef", "Project / site reference", "e.g. Bura Mwatate")}
           {T("clientName", "Client name")}<div><label className={lab}>Client phone</label><PhoneField value={String(d.clientPhone ?? "")} onChange={(v) => set("clientPhone", v)} className={inp} /></div>
           {T("clientEmail", "Client email")}{T("sponsor", "Project sponsor")}
           {T("supervisor", "Supervising organisation")}{T("representative", "Project representative")}

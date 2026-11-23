@@ -240,7 +240,7 @@ async function run(rid: number, refresh: boolean) {
       if (!(Number.isFinite(la) && Number.isFinite(ln)) && !files.some((f) => f.kind === "map")) throw new Error("A map is required. Pin the site on the map (or type the coordinates), or upload a map picture.");
     }
     const refNo = String(data.projectId || "").trim() || await referenceFor(rid, String(loc.county));
-    await referenceFor(rid, String(loc.county));
+    if (!String(data.projectId || "").trim()) data.projectId = refNo;   // the Project ID is automatic
 
     await setProgress(rid, "working", "Researching the area from web sources…");
     let facts: Facts = data.facts;
