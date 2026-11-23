@@ -42,6 +42,9 @@ class ProviderError extends Error {
 type Block = { type: string; [k: string]: unknown };
 export type Msg = { role: "user" | "assistant"; content: string | Block[] };
 
+/** OpenAI retires models too. The first one still available is used, and remembered. OPENAI_MODEL still wins if set. */
+const OPENAI_MODELS = ["gpt-4.1", "gpt-6.1-terra", "gpt-5.4-mini"];
+let openaiAt = 0;
 async function openai(o: { system: string; messages: Msg[]; maxTokens?: number; search?: number; model?: string; json?: boolean }): Promise<ClaudeOut> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY is not set on the server");
@@ -52,13 +55,17 @@ async function openai(o: { system: string; messages: Msg[]; maxTokens?: number; 
       return { type: m.role === "assistant" ? "output_text" : "input_text", text: String(b.text ?? "") };
     }),
   }));
-  const body: Record<string, unknown> = { model: o.model || process.env.OPENAI_MODEL || "gpt-4.1", instructions: o.system, input, max_output_tokens: o.maxTokens ?? 8000 };
+  const body: Record<string, unknown> = { model: o.model || process.env.OPENAI_MODEL || OPENAI_MODELS[Math.min(openaiAt, OPENAI_MODELS.length - 1)]!, instructions: o.system, input, max_output_tokens: o.maxTokens ?? 8000 };
   if (o.search) body.tools = [{ type: "web_search" }];
   else if (o.json) body.text = { format: { type: "json_object" } };
   const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(280_000),
   });
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 300).replace(key, "[key]")}`);
+  if (!r.ok) {
+    const t = (await r.text()).slice(0, 300).replace(key, "[key]");
+    if (!o.model && !process.env.OPENAI_MODEL && openaiAt < OPENAI_MODELS.length - 1 && (r.status === 404 || /model/i.test(t) && /not found|does not exist|deprecated|no access|not have access|decommission/i.test(t))) { openaiAt++; console.warn(`[ai] OpenAI model gone, switching to ${OPENAI_MODELS[openaiAt]}`); return openai(o); }
+    throw new Error(`OpenAI ${r.status}: ${t}`);
+  }
   const j = (await r.json()) as { output?: { type: string; content?: { type: string; text?: string; annotations?: { type: string; url?: string; title?: string }[] }[] }[]; usage?: { input_tokens?: number; output_tokens?: number } };
   const sources = new Map<string, string>(); let text = "", searches = 0;
   for (const it of j.output ?? []) {
