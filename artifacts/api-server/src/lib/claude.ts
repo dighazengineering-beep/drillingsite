@@ -119,6 +119,10 @@ let turn = 0;
 const sleep = (t: number) => new Promise((r) => setTimeout(r, t));
 
 /** Shares the work between the free services: takes turns, spaces the calls out, and when one says "limit reached" it rests that one and carries on with the next. */
+/** Groq retires models from time to time; if one is gone (404 "model not found") we move to the next one in this list and remember it. GROQ_MODEL still wins if set. */
+const GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+let groqAt = 0;
+const groqModel = () => process.env.GROQ_MODEL || GROQ_MODELS[Math.min(groqAt, GROQ_MODELS.length - 1)];
 async function pool(o: CallOpts): Promise<ClaudeOut> {
   // One slot per key: two Gemini keys are two slots, each with its own pause and its own limit.
   const slots = freeNames().flatMap((n) => ENV_KEYS[n]().map((key, i) => ({ id: `${n}#${i}`, n, key })));
@@ -139,7 +143,7 @@ async function pool(o: CallOpts): Promise<ClaudeOut> {
     lastUsed.set(pick.id, Date.now());
     try {
       if (pick.n === "gemini") return await gemini({ ...o, model: o.model && /^gemini/i.test(o.model) ? o.model : undefined }, pick.key);
-      const text = pick.n === "groq" ? { base: "https://api.groq.com/openai/v1", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile" } : { base: "https://api.cerebras.ai/v1", model: process.env.CEREBRAS_MODEL || "gpt-oss-120b" };
+      const text = pick.n === "groq" ? { base: "https://api.groq.com/openai/v1", model: groqModel() } : { base: "https://api.cerebras.ai/v1", model: process.env.CEREBRAS_MODEL || "gpt-oss-120b" };
       return await chatCompat(pick.n, text.base, pick.key, text.model, o);
     } catch (e) {
       last = e;
@@ -148,6 +152,7 @@ async function pool(o: CallOpts): Promise<ClaudeOut> {
       else if (st === 401 || st === 403) cooling.set(pick.id, Date.now() + 3_600_000);                                                            // bad key
       else if (st === 429 || /rate|quota|limit|exhaust/i.test(msg)) cooling.set(pick.id, Date.now() + (pe.daily ? 3_600_000 : Math.max(pe.waitMs || 0, 65_000)));
       else if (st >= 500 || st === 0) cooling.set(pick.id, Date.now() + 30_000);                                                                  // service hiccup or timeout
+      else if (pick.n === "groq" && /model/i.test(msg) && (st === 404 || /not exist|not found|decommission/i.test(msg)) && !process.env.GROQ_MODEL && groqAt < GROQ_MODELS.length - 1) { groqAt++; console.warn(`[ai] groq model gone, switching to ${groqModel()}`); }
       else skip.add(pick.n);                                                                                                                      // refused this request (e.g. unknown model)
       console.warn(`[ai] ${pick.id} failed (${st || "error"}): ${msg.slice(0, 160)}; trying another`);
     }
