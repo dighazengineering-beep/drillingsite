@@ -8,6 +8,7 @@ import { DateSelect } from "@/components/DateSelect";
 import { FileText, Plus, Trash2, Upload, Sparkles, Download, ArrowLeft, Loader2, ImageIcon } from "lucide-react";
 import { API } from "@/lib/member";
 import { GoogleFill } from "@/components/GoogleFill";
+import { MapBoundary } from "@/components/MapBoundary";
 
 type Cal = { y1: number; d1: number; y2: number; d2: number; stationX: number; plot: { x0: number; x1: number; y0: number; y1: number } };
 interface Pick { fileId: number; station: string; recommended: boolean; reason: string; yieldText: string; zoneFrom: number; zoneTo: number; cal?: Cal; note?: string; confidence?: string }
@@ -312,7 +313,16 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
     </select>
   );
   const [crop, setCrop] = useState<{ src: string; name: string; replace?: number } | null>(null);
-  const [mapOpen, setMapOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false); const [locMsg, setLocMsg] = useState("");
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { setLocMsg("This device cannot share its location."); return; }
+    setLocMsg("Finding your location…");
+    navigator.geolocation.getCurrentPosition(
+      (p) => { set("lat", String(Math.round(p.coords.latitude * 1e5) / 1e5)); set("lng", String(Math.round(p.coords.longitude * 1e5) / 1e5)); setLocMsg("Location added."); },
+      () => setLocMsg("Could not get the location. Allow location access, or type the coordinates."),
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  };
   const saveCrop = async (blob: Blob, name: string) => {
     const old = crop?.replace; if (crop && !crop.replace) URL.revokeObjectURL(crop.src); setCrop(null);
     const nid = await upload(new File([blob], "map.jpg", { type: "image/jpeg" }), "map", name);
@@ -424,7 +434,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
           {T("subcounty", "Sub-county")}{T("county", "County")}
           {T("landmark", "Nearest landmark")}{T("elevation", "Elevation (m AMSL)")}
           {T("lat", "Latitude (decimal, S is negative)", "-3.53073")}{T("lng", "Longitude (decimal)", "38.32219")}
-          <div className="sm:col-span-2"><button type="button" onClick={() => setMapOpen(true)} className="rounded-xl border border-primary px-4 py-2 text-sm font-bold text-primary">Pick the point on the map</button></div>
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2"><button type="button" onClick={() => setMapOpen(true)} className="rounded-xl border border-primary px-4 py-2 text-sm font-bold text-primary">Pick the point on the map</button><button type="button" onClick={useMyLocation} className="rounded-xl border border-border px-4 py-2 text-sm font-bold text-foreground">Use my location</button>{locMsg && <span className="text-xs text-muted-foreground">{locMsg}</span>}</div>
           <div className="sm:col-span-2">{T("purpose", "Project purpose", "e.g. Groundwater exploration and borehole siting using PQWT")}</div>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">Land use, existing water sources and demand are written by the AI from the area research. Type them only if you know specific facts about this plot.</p>
@@ -507,7 +517,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
         <div className="mb-3 mt-4 flex flex-wrap gap-3">{of("map").map((f) => (<div key={f.id} className="text-center"><Pic f={f} /><div className="mt-1 text-xs font-semibold text-foreground">{f.name}</div><button onClick={() => blobs[f.id] && setCrop({ src: blobs[f.id]!, name: f.name, replace: f.id })} className="mt-1 w-full rounded-lg border border-primary/40 px-2 py-1 text-[11px] font-bold text-primary">Zoom / reframe</button><EditBtn fid={f.id} kind="map" title={f.name} /><MoveSel fid={f.id} from="map" /><button onClick={() => delFile(f.id)} className="text-xs text-red-600">Remove</button></div>))}</div>
         <button type="button" onClick={() => setMapOpen(true)} className="mb-3 flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><ImageIcon className="h-4 w-4" /> Open the full map: pin, views, screenshot</button>
         {fileInput("image/png,image/jpeg,image/webp", (f) => setCrop({ src: URL.createObjectURL(f), name: "Aerial view of the site" }), "Add a map or aerial screenshot (you can zoom it)")}
-        {mapOpen && <Suspense fallback={null}><MapShot initial={d.lat && d.lng && Number.isFinite(Number(d.lat)) ? { lat: Number(d.lat), lng: Number(d.lng) } : null} query={[d.village, d.locationName, d.subcounty, d.county].filter(Boolean).join(", ")} onClose={() => setMapOpen(false)} onShot={(b, nm) => { setMapOpen(false); setCrop({ src: URL.createObjectURL(b), name: nm }); }} onUsePin={(la, ln) => { set("lat", String(la)); set("lng", String(ln)); setMapOpen(false); setMsg("Pin saved as the latitude and longitude. Press Save."); }} /></Suspense>}
+        {mapOpen && <MapBoundary onClose={() => setMapOpen(false)}><Suspense fallback={null}><MapShot initial={d.lat && d.lng && Number.isFinite(Number(d.lat)) ? { lat: Number(d.lat), lng: Number(d.lng) } : null} query={[d.village, d.locationName, d.subcounty, d.county].filter(Boolean).join(", ")} onClose={() => setMapOpen(false)} onShot={(b, nm) => { setMapOpen(false); setCrop({ src: URL.createObjectURL(b), name: nm }); }} onUsePin={(la, ln) => { set("lat", String(la)); set("lng", String(ln)); setMapOpen(false); setMsg("Pin saved as the latitude and longitude. Press Save."); }} /></Suspense></MapBoundary>}
         {edit && blobs[edit.fid] && <PicEditor src={blobs[edit.fid]!} title={edit.title} onCancel={() => setEdit(null)} onDone={(b) => void saveEdit(b)} />}
         {crop && <MapCropper src={crop.src} name={crop.name} onCancel={() => { if (!crop.replace) URL.revokeObjectURL(crop.src); setCrop(null); }} onDone={saveCrop} />}
       </section>

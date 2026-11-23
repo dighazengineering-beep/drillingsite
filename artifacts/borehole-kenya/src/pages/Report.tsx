@@ -1,4 +1,5 @@
 import { GoogleFill } from "@/components/GoogleFill";
+import { MapBoundary } from "@/components/MapBoundary";
 import { ReasonPicker, RecommendToggle, POINT_YES, POINT_NO } from "@/components/ReasonPicker";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, LocateFixed, ScanLine, FileText, Loader2, CheckCircle2, Upload, Download, Trash2, Lock, LockOpen, Smartphone, Sparkles, ImageIcon } from "lucide-react";
@@ -588,7 +589,7 @@ function Form({ free, plans, auth, w, onAuth, onDone }: { free: boolean; plans: 
             <button type="button" onClick={useMyLocation} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground"><LocateFixed className="h-4 w-4" /> Use my location</button>
             <button type="button" onClick={() => setMapOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground"><MapPin className="h-4 w-4" /> Pick on the map</button>
           </div>
-          {mapOpen && <Suspense fallback={null}><MapPicker satellite initial={d.lat && d.lng && Number.isFinite(Number(d.lat)) ? { lat: Number(d.lat), lng: Number(d.lng) } : null} query={[d.village, d.locationName, d.subcounty, d.county].filter(Boolean).join(", ")} onClose={() => setMapOpen(false)} onConfirm={(la, ln) => { setMapOpen(false); elevManual.current = false; setCoordText(`${la}, ${ln}`); void applyCoords(la, ln); }} /></Suspense>}
+          {mapOpen && <MapBoundary onClose={() => setMapOpen(false)}><Suspense fallback={null}><MapPicker satellite initial={d.lat && d.lng && Number.isFinite(Number(d.lat)) ? { lat: Number(d.lat), lng: Number(d.lng) } : null} query={[d.village, d.locationName, d.subcounty, d.county].filter(Boolean).join(", ")} onClose={() => setMapOpen(false)} onConfirm={(la, ln) => { setMapOpen(false); elevManual.current = false; setCoordText(`${la}, ${ln}`); void applyCoords(la, ln); }} /></Suspense></MapBoundary>}
           {reading && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading…</p>}
           {coordMsg && !reading && <p className={`text-xs ${d.lat ? "font-semibold text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}>{coordMsg}</p>}
           <p className="text-[11px] text-muted-foreground">County, sub-county, ward and village fill in from the coordinates. You can change them.</p>

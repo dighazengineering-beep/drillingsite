@@ -7,6 +7,11 @@ import "./lib/install";
 
 applyLite();
 
+// After an update, a page that was already open may ask for a file that no longer exists. Reload once to get the newest version.
+window.addEventListener("vite:preloadError", () => {
+  try { const k = "dh-reloaded"; if (Date.now() - Number(sessionStorage.getItem(k) || 0) > 60_000) { sessionStorage.setItem(k, String(Date.now())); location.reload(); } } catch { location.reload(); }
+});
+
 const apiUrl = import.meta.env.VITE_API_URL;
 if (apiUrl) {
   setBaseUrl(apiUrl);
