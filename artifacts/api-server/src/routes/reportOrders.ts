@@ -8,7 +8,7 @@ import { ensureDocs } from "./clientDocs";
 import { memberFrom } from "./members";
 import { elevationAt } from "../lib/elevation";
 import { normaliseShot, readCoordinates } from "../lib/hydroAi";
-import { ensureReportTables, queued, runningReports, getReportData, setReportData, reportFile, liveOf } from "./reports";
+import { pastDetails, ensureReportTables, queued, runningReports, getReportData, setReportData, reportFile, liveOf } from "./reports";
 
 /** The paid survey-report service for clients. Money arrives through the normal M-Pesa payment; credits are worked out here from CONFIRMED payments of the exact price, never from what the browser says. */
 const router = Router();
@@ -37,6 +37,20 @@ async function wallet(phone: string) {
 /** What a client may see: never how many reports a plan holds. */
 const pub = (w: { left: number; subUntil: string | null; canBoost: boolean }) => ({ can: w.left > 0, subUntil: w.subUntil, canBoost: w.canBoost });
 router.get("/report-plans", (_q, res) => res.json({ free: !PAYMENTS_ON, plans: Object.entries(PLANS).map(([k, v]) => ({ key: k, item: v.item, price: v.price, label: v.label, blurb: v.blurb })), ai: claudeReady() }));
+
+// "Add from Google": Google confirms who the person is, then we hand back their name and email, and what they typed in earlier reports. Optional for the client.
+router.post("/my-reports/prefill", async (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID, credential = String(req.body?.credential ?? "").slice(0, 4000);
+  if (!clientId || !credential) { res.status(400).json({ error: "Google sign-in is not switched on." }); return; }
+  try {
+    const g = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    const info: any = await g.json();
+    if (!g.ok || info.aud !== clientId || !(info.email_verified === true || info.email_verified === "true") || !info.email) { res.status(401).json({ error: "Google could not be verified." }); return; }
+    const email = String(info.email).toLowerCase();
+    const past = await pastDetails(email);
+    res.json({ email, name: String(info.name ?? past.clientName ?? ""), data: past });
+  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+});
 
 // after a payment is confirmed, turn it into credits (once)
 router.post("/my-reports/claim", async (req, res) => {

@@ -65,6 +65,18 @@ async function referenceFor(rid: number, county: string): Promise<string> {
   await pool.query("UPDATE hydro_reports SET ref_no=$2 WHERE id=$1", [rid, ref]);
   return ref;
 }
+/** What we already know about a client from their earlier reports (same email): phone and where they work. Only fills what was typed before. */
+export async function pastDetails(email: string): Promise<Record<string, string>> {
+  const e = email.trim().toLowerCase(); if (!e) return {};
+  await ensure();
+  const rows = (await pool.query("SELECT data FROM hydro_reports WHERE lower(data->>'clientEmail')=$1 ORDER BY updated_at DESC LIMIT 5", [e])).rows as { data: Record<string, unknown> }[];
+  const out: Record<string, string> = {};
+  for (const k of ["clientName", "clientPhone", "county", "subcounty", "locationName", "village", "landmark"]) {
+    const hit = rows.map((r) => String(r.data?.[k] ?? "").trim()).find(Boolean); if (hit) out[k] = hit;
+  }
+  return out;
+}
+router.get("/reports/prefill", admin, async (req, res) => { try { res.json({ data: await pastDetails(String(req.query.email ?? "")) }); } catch (e) { res.status(500).json({ error: (e as Error).message }); } });
 router.use("/reports", admin, async (_q, _s, next) => { try { await ensure(); next(); } catch (e) { next(e); } });
 
 const id = (req: Request) => Number(req.params.id) || 0;
