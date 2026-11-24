@@ -2,13 +2,16 @@ import { stampSvg, stampDate } from "./companyStamp";
 import { photoCard, sideCard, type NoteExtra } from "./hydroFigures";
 import {
   AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, ImageRun, LineRuleType, Packer, PageBreak, PageNumber, Paragraph,
-  SequentialIdentifier, Table, TableCell, TableOfContents, TableRow, TextRun, WidthType, ShadingType, type FileChild,
+  SequentialIdentifier, TabStopType, VerticalAlign, Table, TableCell, TableOfContents, TableRow, TextRun, WidthType, ShadingType, type FileChild,
 } from "docx";
 import type { Sec } from "./hydroWrite";
 
-const FONT = "Times New Roman";
-const BODY = 24; // 12 pt
-const LINE = { line: 360, lineRule: LineRuleType.AUTO, after: 120 }; // 1.5 spacing
+const FONT = "Calibri";
+const HFONT = "Cambria";
+const BODY = 22; // 11 pt
+const LINE = { line: 330, lineRule: LineRuleType.AUTO, after: 120 };
+// the company colours (the blue and green of the logo), used through real Word styles so the theme can be changed in Word itself
+const BLUE = "0B3A8C", GREEN = "2E8B3D", PALE = "EAF0FA", ZEBRA = "F5F8FD", LINEC = "C5D1E3", GREY = "5B6573";
 
 import type { Flow } from "./hydroWrite";
 export interface DocFigure { buf: Buffer; w: number; h: number; caption: string; after: string /** section id it follows */; notes?: { heading: string; lines: string[]; extra?: NoteExtra } }
@@ -35,24 +38,24 @@ const fit = (w: number, h: number, maxW = 560, maxH = 330) => { const k = Math.m
 const imgType = (b: Buffer): "jpg" | "png" => (b[0] === 0xff && b[1] === 0xd8 ? "jpg" : "png");
 const head = (s: Sec) => new Paragraph({
   heading: s.level === 1 ? HeadingLevel.HEADING_1 : s.level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
-  spacing: { before: s.level === 1 ? 480 : 240, after: 120 }, keepNext: true,
-  children: [run(`${s.num ? s.num + "  " : ""}${s.title}`, { bold: true, size: s.level === 1 ? 30 : s.level === 2 ? 26 : 24, color: "0B2A4A" })],
+  children: [new TextRun({ text: `${s.num ? s.num + "  " : ""}${s.title}` })],
 });
 const caption = (label: "Figure" | "Table", text: string, above: boolean) => new Paragraph({
   style: "Caption", alignment: AlignmentType.CENTER, keepNext: above, spacing: { before: above ? 200 : 60, after: above ? 80 : 240 },
-  children: [run(`${label} `, { bold: true, size: 22 }), new SequentialIdentifier(label), run(`: ${text}`, { size: 22, bold: true })],
+  children: [new TextRun({ text: `${label} ` }), new SequentialIdentifier(label), new TextRun({ text: `: ${text}` })],
 });
-const border = { style: BorderStyle.SINGLE, size: 4, color: "7a8794" };
-const cell = (t: string, o: { head?: boolean; w?: number } = {}) => new TableCell({
+const border = { style: BorderStyle.SINGLE, size: 4, color: LINEC };
+const cell = (t: string, o: { head?: boolean; w?: number; zebra?: boolean; first?: boolean } = {}) => new TableCell({
   width: o.w ? { size: o.w, type: WidthType.PERCENTAGE } : undefined,
-  shading: o.head ? { type: ShadingType.CLEAR, fill: "0B2A4A", color: "auto" } : undefined,
-  margins: { top: 60, bottom: 60, left: 100, right: 100 },
+  verticalAlign: VerticalAlign.CENTER,
+  shading: o.head ? { type: ShadingType.CLEAR, fill: BLUE, color: "auto" } : o.first ? { type: ShadingType.CLEAR, fill: PALE, color: "auto" } : o.zebra ? { type: ShadingType.CLEAR, fill: ZEBRA, color: "auto" } : undefined,
+  margins: { top: 70, bottom: 70, left: 110, right: 110 },
   borders: { top: border, bottom: border, left: border, right: border },
-  children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [run(t, { size: 21, bold: o.head, color: o.head ? "FFFFFF" : undefined })] })],
+  children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [run(t, { size: 20, bold: o.head || o.first, color: o.head ? "FFFFFF" : o.first ? BLUE : undefined })] })],
 });
 const table = (headRow: string[], rows: string[][]) => new Table({
   width: { size: 100, type: WidthType.PERCENTAGE },
-  rows: [new TableRow({ tableHeader: true, children: headRow.map((h) => cell(h, { head: true })) }), ...rows.map((r) => new TableRow({ cantSplit: true, children: r.map((c) => cell(c)) }))],
+  rows: [new TableRow({ tableHeader: true, cantSplit: true, children: headRow.map((h) => cell(h, { head: true })) }), ...rows.map((r, i) => new TableRow({ cantSplit: true, children: r.map((c) => cell(c, { zebra: i % 2 === 1 })) }))],
 });
 
 export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) => Promise<void>): Promise<Buffer> {
@@ -66,29 +69,46 @@ export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) =
   d = { ...d, figures: await Promise.all(d.figures.map(card)), appendices: await Promise.all((d.appendices ?? []).map(async (a) => ({ ...a, figure: a.figure ? await card(a.figure) : undefined, plates: a.plates ? await Promise.all(a.plates.map(card)) : undefined }))) };
   if (onPrepared) { try { await onPrepared(d); } catch (e) { console.error("[report] preview failed", e); } }
   const kids: FileChild[] = [];
-  // cover
-  kids.push(new Paragraph({ spacing: { before: 600 }, children: [] }));
-  kids.push(para(d.title, { align: AlignmentType.CENTER, bold: true, size: 40, space: 200 }));
-  kids.push(para(d.subtitle, { align: AlignmentType.CENTER, bold: true, size: 30, space: 500 }));
+  // cover: logo, a coloured title band, the details table, the reference line, the company stamp
+  if (d.logo) {
+    try {
+      const { loadImage } = await import("@napi-rs/canvas"); const im = await loadImage(d.logo); const h = 70; 
+      kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 120 }, children: [new ImageRun({ type: imgType(d.logo), data: d.logo, transformation: { width: Math.round((im.width / im.height) * h), height: h } })] }));
+    } catch { /* no logo */ }
+  }
+  kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: d.company.toUpperCase(), font: HFONT, bold: true, size: 26, color: BLUE, characterSpacing: 60 })] }));
+  const bandB = { style: BorderStyle.SINGLE, size: 36, color: GREEN };
+  const none = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
   kids.push(new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: d.cover.filter(([, v]) => v).map(([k, v]) => new TableRow({ children: [cell(k, { w: 32 }), cell(v, { w: 68 })] })),
+    rows: [new TableRow({ children: [new TableCell({
+      shading: { type: ShadingType.CLEAR, fill: BLUE, color: "auto" }, margins: { top: 420, bottom: 380, left: 300, right: 300 },
+      borders: { top: none, left: none, right: none, bottom: bandB },
+      children: [
+        new Paragraph({ style: "Title", alignment: AlignmentType.CENTER, children: [new TextRun({ text: d.title })] }),
+        new Paragraph({ style: "Subtitle", alignment: AlignmentType.CENTER, children: [new TextRun({ text: d.subtitle })] }),
+      ],
+    })] })],
   }));
-  kids.push(para("", { space: 200 }));
-  // the geologist's stamp: only the one uploaded for this report (the company has no default stamp)
-  if (d.signature.stamp) kids.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: d.signature.stamp, transformation: { width: 150, height: 150 } })] }));
-  kids.push(para(`${d.reference ? `Report Reference: ${d.reference}   |   ` : ""}Report Date: ${d.date}`, { align: AlignmentType.CENTER, bold: true, space: 120 }));
-  kids.push(para("This report is prepared for the exclusive use of the client and project stakeholders named herein.", { align: AlignmentType.CENTER, size: 20 }));
-  // the company's own stamp, just below this line on the same page, dated with the report date
+  kids.push(new Paragraph({ spacing: { before: 200 }, children: [] }));
+  kids.push(new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: d.cover.filter(([, v]) => v).map(([k, v]) => new TableRow({ cantSplit: true, children: [cell(k, { w: 32, first: true }), cell(v, { w: 68 })] })),
+  }));
+  kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 280, after: 80 }, children: [new TextRun({ text: `${d.reference ? `Report Reference: ${d.reference}   |   ` : ""}Report Date: ${d.date}`, bold: true, font: HFONT, size: 24, color: BLUE })] }));
+  kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: "This report is prepared for the exclusive use of the client and project stakeholders named herein.", italics: true, size: 19, color: GREY })] }));
+  // the geologist's own stamp, only when one was uploaded for this report
+  if (d.signature.stamp) kids.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: d.signature.stamp, transformation: { width: 120, height: 120 } })] }));
+  // the company's own stamp, on the same page, dated with the report date
   try {
     const { createCanvas, loadImage } = await import("@napi-rs/canvas");
     const dt = new Date(d.date); const sd = stampDate(isNaN(dt.getTime()) ? new Date() : dt);
     const img = await loadImage(Buffer.from(stampSvg(sd)));
     const cv = createCanvas(1440, 680); cv.getContext("2d").drawImage(img, 0, 0, 1440, 680);
-    kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 240 }, children: [new ImageRun({ type: "png", data: cv.toBuffer("image/png"), transformation: { width: 190, height: 90 } })] }));
+    kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 200 }, children: [new ImageRun({ type: "png", data: cv.toBuffer("image/png"), transformation: { width: 190, height: 90 } })] }));
   } catch { /* the report is still written without the stamp */ }
   kids.push(new Paragraph({ children: [new PageBreak()] }));
-  const label = (t: string) => new Paragraph({ alignment: AlignmentType.LEFT, spacing: { after: 200 }, children: [run(t, { bold: true, size: 30, color: "0B2A4A" })] });
+  const label = (t: string) => new Paragraph({ style: "FrontHead", children: [new TextRun({ text: t })] });
   kids.push(label("TABLE OF CONTENTS"));
   kids.push(new TableOfContents("Table of Contents", { hyperlink: true, headingStyleRange: "1-3" }));
   kids.push(new Paragraph({ children: [new PageBreak()] }));
@@ -145,14 +165,22 @@ export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) =
     features: { updateFields: true },
     creator: d.company, title: d.title,
     styles: {
-      default: { document: { run: { font: FONT, size: BODY } } },
-      paragraphStyles: [{ id: "Caption", name: "Caption", basedOn: "Normal", run: { font: FONT, size: 22, bold: true } }],
+      default: { document: { run: { font: FONT, size: BODY, color: "1F2933" } } },
+      paragraphStyles: [
+        { id: "Title", name: "Title", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 56, bold: true, color: "FFFFFF" }, paragraph: { spacing: { before: 0, after: 160 }, alignment: AlignmentType.CENTER } },
+        { id: "Subtitle", name: "Subtitle", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 30, color: "DCE8FA" }, paragraph: { spacing: { before: 0, after: 0 }, alignment: AlignmentType.CENTER } },
+        { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 32, bold: true, color: BLUE }, paragraph: { keepNext: true, keepLines: true, spacing: { before: 440, after: 160 }, border: { bottom: { style: BorderStyle.SINGLE, size: 10, color: GREEN, space: 4 } }, outlineLevel: 0 } },
+        { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 26, bold: true, color: "1F5FBF" }, paragraph: { keepNext: true, keepLines: true, spacing: { before: 260, after: 100 }, outlineLevel: 1 } },
+        { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 23, bold: true, italics: true, color: GREEN }, paragraph: { keepNext: true, keepLines: true, spacing: { before: 200, after: 80 }, outlineLevel: 2 } },
+        { id: "FrontHead", name: "Front Heading", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 32, bold: true, color: BLUE }, paragraph: { keepNext: true, spacing: { before: 0, after: 240 }, border: { bottom: { style: BorderStyle.SINGLE, size: 10, color: GREEN, space: 4 } } } },
+        { id: "Caption", name: "Caption", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: FONT, size: 20, bold: true, italics: true, color: BLUE } },
+      ],
     },
     sections: [{
       properties: { page: { margin: { top: 1440, bottom: 1300, left: 1440, right: 1300 } }, titlePage: true },
-      headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "0B2A4A", space: 4 } }, children: [run(d.title, { size: 18, color: "0B2A4A" })] })] }), first: new Header({ children: [] }) },
+      headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: GREEN, space: 4 } }, children: [new TextRun({ text: d.company.toUpperCase(), font: HFONT, bold: true, size: 17, color: BLUE, characterSpacing: 30 }), new TextRun({ text: `   |   ${d.title}`, size: 17, color: GREY })] })] }), first: new Header({ children: [] }) },
       footers: {
-        default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [run(`${d.footerText}  |  Page `, { size: 18 }), new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 18 })] })] }),
+        default: new Footer({ children: [new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: 9500 }], border: { top: { style: BorderStyle.SINGLE, size: 6, color: LINEC, space: 4 } }, children: [new TextRun({ text: d.footerText, size: 17, color: GREY }), new TextRun({ text: "\tPage ", size: 17, color: BLUE, bold: true }), new TextRun({ children: [PageNumber.CURRENT], size: 17, color: BLUE, bold: true }), new TextRun({ text: " of ", size: 17, color: BLUE, bold: true }), new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 17, color: BLUE, bold: true })] })] }),
         first: new Footer({ children: [] }),
       },
       children: kids,
