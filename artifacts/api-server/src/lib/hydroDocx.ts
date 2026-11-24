@@ -2,7 +2,7 @@ import { stampSvg, stampDate } from "./companyStamp";
 import { photoCard, sideCard, type NoteExtra } from "./hydroFigures";
 import {
   AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, ImageRun, LineRuleType, Packer, PageBreak, PageNumber, Paragraph,
-  SequentialIdentifier, TabStopType, VerticalAlign, Table, TableCell, TableOfContents, TableRow, TextRun, WidthType, ShadingType, type FileChild,
+  SequentialIdentifier, Bookmark, InternalHyperlink, SimpleField, Tab, LeaderType, TabStopType, VerticalAlign, Table, TableCell, TableOfContents, TableRow, TextRun, WidthType, ShadingType, type FileChild,
 } from "docx";
 import type { Sec } from "./hydroWrite";
 
@@ -28,6 +28,8 @@ export interface DocInput {
   references: string[]; onlineRefs: string[];
   signature: { name: string; title: string; stamp?: Buffer; sign?: Buffer };
   date: string;
+  /** page of each heading (h1, h2…), figure (f1…) and table (t1…), worked out while the preview is drawn; the Word file shows these until Word recounts */
+  pageMap?: Record<string, number>;
 }
 
 const run = (t: string, o: { bold?: boolean; size?: number; color?: string; italics?: boolean } = {}) => new TextRun({ text: t, font: FONT, size: o.size ?? BODY, bold: o.bold, color: o.color, italics: o.italics });
@@ -36,14 +38,6 @@ const para = (t: string, o: { align?: (typeof AlignmentType)[keyof typeof Alignm
 /** A picture sized to fit a box (never taller than about half a page), keeping its shape. */
 const fit = (w: number, h: number, maxW = 560, maxH = 330) => { const k = Math.min(maxW / w, maxH / h, 1.5); return { width: Math.round(w * k), height: Math.round(h * k) }; };
 const imgType = (b: Buffer): "jpg" | "png" => (b[0] === 0xff && b[1] === 0xd8 ? "jpg" : "png");
-const head = (s: Sec) => new Paragraph({
-  heading: s.level === 1 ? HeadingLevel.HEADING_1 : s.level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
-  children: [new TextRun({ text: `${s.num ? s.num + "  " : ""}${s.title}` })],
-});
-const caption = (label: "Figure" | "Table", text: string, above: boolean) => new Paragraph({
-  style: "Caption", alignment: AlignmentType.CENTER, keepNext: above, spacing: { before: above ? 200 : 60, after: above ? 80 : 240 },
-  children: [new TextRun({ text: `${label} ` }), new SequentialIdentifier(label), new TextRun({ text: `: ${text}` })],
-});
 const border = { style: BorderStyle.SINGLE, size: 4, color: LINEC };
 const cell = (t: string, o: { head?: boolean; w?: number; zebra?: boolean; first?: boolean } = {}) => new TableCell({
   width: o.w ? { size: o.w, type: WidthType.PERCENTAGE } : undefined,
@@ -57,6 +51,13 @@ const table = (headRow: string[], rows: string[][]) => new Table({
   width: { size: 100, type: WidthType.PERCENTAGE },
   rows: [new TableRow({ tableHeader: true, cantSplit: true, children: headRow.map((h) => cell(h, { head: true })) }), ...rows.map((r, i) => new TableRow({ cantSplit: true, children: r.map((c) => cell(c, { zebra: i % 2 === 1 })) }))],
 });
+
+/** After which paragraph each of k pictures goes, out of m paragraphs: spread evenly, never before the first paragraph. */
+export function spread(k: number, m: number): number[] {
+  const out: number[] = []; let prev = 0;
+  for (let j = 0; j < k; j++) { let t = Math.max(1, Math.round(((j + 1) * m) / (k + 1))); if (t <= prev && prev < m) t = prev + 1; out.push(t); prev = t; }
+  return out;
+}
 
 export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) => Promise<void>): Promise<Buffer> {
   // every picture, chart, map and plate gets the same look as the receipts in the contract: a sheet with a shadow on a blurred copy of itself
@@ -108,59 +109,87 @@ export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) =
     kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 200 }, children: [new ImageRun({ type: "png", data: cv.toBuffer("image/png"), transformation: { width: 190, height: 90 } })] }));
   } catch { /* the report is still written without the stamp */ }
   kids.push(new Paragraph({ children: [new PageBreak()] }));
-  const label = (t: string) => new Paragraph({ style: "FrontHead", children: [new TextRun({ text: t })] });
-  kids.push(label("TABLE OF CONTENTS"));
-  kids.push(new TableOfContents("Table of Contents", { hyperlink: true, headingStyleRange: "1-3" }));
-  kids.push(new Paragraph({ children: [new PageBreak()] }));
-  kids.push(label("LIST OF FIGURES"));
-  kids.push(new TableOfContents("List of Figures", { hyperlink: true, captionLabelIncludingNumbers: "Figure" }));
-  kids.push(new Paragraph({ children: [new PageBreak()] }));
-  kids.push(label("LIST OF TABLES"));
-  kids.push(new TableOfContents("List of Tables", { hyperlink: true, captionLabelIncludingNumbers: "Table" }));
-  kids.push(new Paragraph({ children: [new PageBreak()] }));
-  kids.push(label("GLOSSARY AND ABBREVIATIONS"));
-  kids.push(table(["Term", "Meaning"], d.abbreviations.map(([a, b]) => [a, b])));
-  kids.push(new Paragraph({ children: [new PageBreak()] }));
-
-  const addExtras = (id: string) => {
-    for (const t of d.tables.filter((x) => x.after === id)) { kids.push(caption("Table", t.caption, true), table(t.head, t.rows), para("", { space: 120 })); }
-    for (const f of d.figures.filter((x) => x.after === id)) {
-      kids.push(new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160 }, children: [new ImageRun({ type: imgType(f.buf), data: f.buf, transformation: fit(f.w, f.h, 560, /geoelectric section at station/i.test(f.caption) ? 400 : 330) })] }), caption("Figure", f.caption, false));
-    }
+  // headings and captions carry bookmarks, so the contents and the lists of figures and tables are written out in full (with page numbers) and need no updating in Word
+  type Ent = { text: string; id: string; key: string; lvl: number };
+  const toc: Ent[] = [], figL: Ent[] = [], tabL: Ent[] = [];
+  let hN = 0, fN = 0, tN = 0;
+  const H = (s: Sec, newPage = false) => {
+    const n = ++hN, id = `_Toc${n}`, text = `${s.num ? s.num + "  " : ""}${s.title}`; toc.push({ text, id, key: `h${n}`, lvl: s.level });
+    return new Paragraph({
+      heading: s.level === 1 ? HeadingLevel.HEADING_1 : s.level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3, pageBreakBefore: newPage,
+      children: [new Bookmark({ id, children: [new TextRun({ text })] })],
+    });
+  };
+  const C = (label: "Figure" | "Table", text: string, above: boolean) => {
+    const fig = label === "Figure", n = fig ? ++fN : ++tN, id = `_Cap${fig ? "F" : "T"}${n}`;
+    (fig ? figL : tabL).push({ text: `${label} ${n}: ${text}`, id, key: `${fig ? "f" : "t"}${n}`, lvl: 0 });
+    return new Paragraph({
+      style: "Caption", alignment: AlignmentType.CENTER, keepNext: above, spacing: { before: above ? 200 : 60, after: above ? 80 : 240 },
+      children: [new Bookmark({ id, children: [new TextRun({ text: `${label} ` }), new SimpleField(`SEQ ${label} \\* ARABIC`, String(n)), new TextRun({ text: `: ${text}` })] })],
+    });
+  };
+  const body: FileChild[] = [];
+  /** the tables and figures that belong to a section: alternated, each as a block that is made only when it is placed (so the numbers follow the page order) */
+  const extraThunks = (id: string): (() => FileChild[])[] => {
+    const ts = d.tables.filter((x) => x.after === id).map((t) => () => [C("Table", t.caption, true), table(t.head, t.rows), para("", { space: 120 })] as FileChild[]);
+    const fs = d.figures.filter((x) => x.after === id).map((f) => () => [
+new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160 }, children: [new ImageRun({ type: imgType(f.buf), data: f.buf, transformation: fit(f.w, f.h, 560, /geoelectric section at station/i.test(f.caption) ? 400 : 330) })] }),
+      C("Figure", f.caption, false),
+    ] as FileChild[]);
+    const out: (() => FileChild[])[] = []; for (let i = 0; i < Math.max(ts.length, fs.length); i++) { if (fs[i]) out.push(fs[i]!); if (ts[i]) out.push(ts[i]!); }
+    return out;
   };
   for (const s of d.secs) {
-    kids.push(head(s));
+    body.push(H(s));
+    const items: { isP: boolean; make: () => FileChild[] }[] = [];
     if (d.flow?.[s.id]) {
       for (const f of d.flow[s.id]!) {
-        if ("p" in f) kids.push(para(f.p));
-        else if ("table" in f) kids.push(caption("Table", f.table.caption, true), table(f.table.head, f.table.rows), para("", { space: 120 }));
-        else for (const b of f.bullets) kids.push(new Paragraph({ bullet: { level: 0 }, alignment: AlignmentType.JUSTIFIED, spacing: { ...LINE, after: 80 }, children: [run(b)] }));
+        if ("p" in f) items.push({ isP: true, make: () => [para(f.p)] });
+        else if ("table" in f) items.push({ isP: false, make: () => [C("Table", f.table.caption, true), table(f.table.head, f.table.rows), para("", { space: 120 })] });
+        else items.push({ isP: false, make: () => f.bullets.map((b) => new Paragraph({ bullet: { level: 0 }, alignment: AlignmentType.JUSTIFIED, spacing: { ...LINE, after: 80 }, children: [run(b)] })) });
       }
-    } else for (const p of d.text[s.id] ?? []) kids.push(para(p));
-    addExtras(s.id);
+    } else for (const p of d.text[s.id] ?? []) items.push({ isP: true, make: () => [para(p)] });
+    // the pictures, charts and tables are placed between the paragraphs, spread through the section, never piled up at its end
+    const ex = extraThunks(s.id), at = spread(ex.length, items.filter((x) => x.isP).length);
+    let pc = 0, ei = 0; const seq: (() => FileChild[])[] = [];
+    for (const it of items) { seq.push(it.make); if (it.isP) { pc++; while (ei < ex.length && at[ei]! <= pc) seq.push(ex[ei++]!); } }
+    while (ei < ex.length) seq.push(ex[ei++]!);
+    for (const t of seq) body.push(...t());
   }
   // references
-  kids.push(head({ id: "9", num: "9.0", title: "REFERENCES", level: 1 }));
-  d.references.forEach((r, i) => kids.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { ...LINE, after: 100 }, indent: { left: 540, hanging: 540 }, children: [run(`${i + 1}.  ${r}`)] })));
+  body.push(H({ id: "9", num: "9.0", title: "REFERENCES", level: 1 }, true));
+  d.references.forEach((r, i) => body.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { ...LINE, after: 100 }, indent: { left: 540, hanging: 540 }, children: [run(`${i + 1}.  ${r}`)] })));
   if (d.onlineRefs.length) {
-    kids.push(para("Online sources consulted during preparation of this report:", { bold: true, align: AlignmentType.LEFT }));
-    d.onlineRefs.forEach((r) => kids.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { ...LINE, after: 80 }, indent: { left: 540, hanging: 540 }, children: [run(`•  ${r}`, { size: 22 })] })));
+    body.push(para("Online sources consulted during preparation of this report:", { bold: true, align: AlignmentType.LEFT }));
+    d.onlineRefs.forEach((r) => body.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { ...LINE, after: 80 }, indent: { left: 540, hanging: 540 }, children: [run(`•  ${r}`, { size: 22 })] })));
   }
   // appendices
   (d.appendices ?? []).forEach((a, i) => {
-    kids.push(head({ id: `app${i}`, num: "", title: `Appendix ${String.fromCharCode(65 + i)}: ${a.title}`, level: 1 }));
-    if (a.intro) kids.push(para(a.intro));
+    body.push(H({ id: `app${i}`, num: "", title: `Appendix ${String.fromCharCode(65 + i)}: ${a.title}`, level: 1 }, i === 0));
+    if (a.intro) body.push(para(a.intro));
     if (a.figure) {
-      kids.push(new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160 }, children: [new ImageRun({ type: imgType(a.figure.buf), data: a.figure.buf, transformation: fit(a.figure.w, a.figure.h) })] }), caption("Figure", a.caption, false));
+      body.push(new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160 }, children: [new ImageRun({ type: imgType(a.figure.buf), data: a.figure.buf, transformation: fit(a.figure.w, a.figure.h) })] }), C("Figure", a.caption, false));
     } else if (a.blocks) {
-      for (const b of a.blocks) { kids.push(head({ id: "b", num: "", title: b.h, level: 2 })); for (const t of b.p) kids.push(para(t)); }
+      for (const b of a.blocks) { body.push(H({ id: "b", num: "", title: b.h, level: 2 })); for (const t of b.p) body.push(para(t)); }
     } else if (a.plates) {
       a.plates.forEach((pl, n) => {
-        kids.push(new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160 }, children: [new ImageRun({ type: imgType(pl.buf), data: pl.buf, transformation: fit(pl.w, pl.h, 460, 300) })] }));
-        kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 200 }, children: [run(`Plate ${n + 1}: ${pl.caption}`, { size: 22, bold: true })] }));
+        body.push(new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 160 }, children: [new ImageRun({ type: imgType(pl.buf), data: pl.buf, transformation: fit(pl.w, pl.h, 460, 300) })] }));
+        body.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 200 }, children: [run(`Plate ${n + 1}: ${pl.caption}`, { size: 22, bold: true })] }));
       });
-    } else kids.push(caption("Table", a.caption, true), table(a.head, a.rows));
+    } else body.push(C("Table", a.caption, true), table(a.head, a.rows));
   });
+  const pg = (key: string) => { const v = d.pageMap?.[key]; return v ? String(v + 1) : ""; };
+  const entry = (e: Ent) => new Paragraph({
+    style: e.lvl === 0 ? "TOC1" : `TOC${e.lvl}`, tabStops: [{ type: TabStopType.RIGHT, position: 9500, leader: LeaderType.DOT }],
+    children: [new InternalHyperlink({ anchor: e.id, children: [new TextRun({ text: e.text })] }), new TextRun({ children: [new Tab()] }), new SimpleField(`PAGEREF ${e.id} \\h`, pg(e.key))],
+  });
+  const label = (t: string) => new Paragraph({ style: "FrontHead", children: [new TextRun({ text: t })] });
+  const brk = () => new Paragraph({ children: [new PageBreak()] });
+  kids.push(label("TABLE OF CONTENTS"), ...toc.map(entry), brk());
+  kids.push(label("LIST OF FIGURES"), ...(figL.length ? figL.map(entry) : [para("No figures.", { align: AlignmentType.LEFT })]), brk());
+  kids.push(label("LIST OF TABLES"), ...(tabL.length ? tabL.map(entry) : [para("No tables.", { align: AlignmentType.LEFT })]), brk());
+  kids.push(label("GLOSSARY AND ABBREVIATIONS"), table(["Term", "Meaning"], d.abbreviations.map(([a, b]) => [a, b])), brk());
+  kids.push(...body);
   const doc = new Document({
     features: { updateFields: true },
     creator: d.company, title: d.title,
@@ -173,6 +202,9 @@ export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) =
         { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 26, bold: true, color: "1F5FBF" }, paragraph: { keepNext: true, keepLines: true, spacing: { before: 260, after: 100 }, outlineLevel: 1 } },
         { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 23, bold: true, italics: true, color: GREEN }, paragraph: { keepNext: true, keepLines: true, spacing: { before: 200, after: 80 }, outlineLevel: 2 } },
         { id: "FrontHead", name: "Front Heading", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: HFONT, size: 32, bold: true, color: BLUE }, paragraph: { keepNext: true, spacing: { before: 0, after: 240 }, border: { bottom: { style: BorderStyle.SINGLE, size: 10, color: GREEN, space: 4 } } } },
+        { id: "TOC1", name: "toc 1", basedOn: "Normal", next: "Normal", run: { bold: true }, paragraph: { spacing: { before: 120, after: 40 } } },
+        { id: "TOC2", name: "toc 2", basedOn: "Normal", next: "Normal", paragraph: { indent: { left: 240 }, spacing: { after: 20 } } },
+        { id: "TOC3", name: "toc 3", basedOn: "Normal", next: "Normal", run: { size: 20 }, paragraph: { indent: { left: 480 }, spacing: { after: 20 } } },
         { id: "Caption", name: "Caption", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: FONT, size: 20, bold: true, italics: true, color: BLUE } },
       ],
     },

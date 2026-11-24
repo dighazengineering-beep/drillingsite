@@ -1,5 +1,5 @@
 import { createCanvas, loadImage, type SKRSContext2D } from "@napi-rs/canvas";
-import type { DocInput } from "./hydroDocx";
+import { spread, type DocInput } from "./hydroDocx";
 import { stampSvg, stampDate } from "./companyStamp";
 
 /**
@@ -37,6 +37,7 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
   };
   const finish = () => { stamp(); pages.push(cv.toBuffer("image/jpeg", Q)); n++; cv = createCanvas(Math.round(PW * SCALE), Math.round(PH * SCALE)); g = cv.getContext("2d"); g.scale(SCALE, SCALE); g.fillStyle = "#fff"; g.fillRect(0, 0, PW, PH); g.textBaseline = "alphabetic"; y = MT; };
   g.scale(SCALE, SCALE); g.fillStyle = "#fff"; g.fillRect(0, 0, PW, PH);
+  const pm: Record<string, number> = {}; let hn = 0;
   const room = (h: number) => { if (y + h > PH - MB) finish(); };
   const wrap = (t: string, w: number): string[] => {
     const out: string[] = []; let line = "";
@@ -52,7 +53,7 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
   const heading = (s: { num?: string; title: string; level: number }) => {
     const size = s.level === 1 ? 20 : s.level === 2 ? 16.5 : 14.5; room(size * 3); y += s.level === 1 ? 14 : 8;
     const t = `${s.num ? s.num + "  " : ""}${s.title}`; g.font = `bold ${size}px ${HSERIF}`; g.fillStyle = s.level === 1 ? NAVY : s.level === 2 ? "#1F5FBF" : GREEN; g.textAlign = "left";
-    room(size * 1.6); g.fillText(t, MX, y + size); y += size * 1.35;
+    room(size * 1.6); pm[`h${++hn}`] = n; g.fillText(t, MX, y + size); y += size * 1.35;
     if (s.level === 1) { g.strokeStyle = GREEN; g.lineWidth = 1.6; g.beginPath(); g.moveTo(MX, y); g.lineTo(PW - MX, y); g.stroke(); y += 8; } else y += 3;
   };
   const picture = async (buf: Buffer, w: number, h: number, maxH = 400, maxW = CW) => {
@@ -62,7 +63,7 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
     } catch { /* a picture that cannot be read is skipped */ }
   };
   let fig = 0, tab = 0;
-  const caption = (label: string, t: string) => { text(`${label} ${label === "Figure" ? ++fig : ++tab}: ${t}`, { size: 12, bold: true, align: "center", after: 10, color: NAVY }); };
+  const caption = (label: string, t: string) => { room(34); pm[`${label === "Figure" ? "f" : "t"}${label === "Figure" ? fig + 1 : tab + 1}`] = n; text(`${label} ${label === "Figure" ? ++fig : ++tab}: ${t}`, { size: 12, bold: true, align: "center", after: 10, color: NAVY }); };
   const table = (head: string[], rows: string[][]) => {
     const cols = Math.max(1, head.length); const wts = head.map((h, i) => Math.max(6, h.length, ...rows.map((r) => (r[i] ?? "").length > 40 ? 40 : (r[i] ?? "").length)));
     const sum = wts.reduce((a, b) => a + b, 0); const ws = wts.map((x) => (x / sum) * CW);
@@ -91,30 +92,41 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
   try { const dt = new Date(d.date); const im = await loadImage(Buffer.from(stampSvg(stampDate(isNaN(dt.getTime()) ? new Date() : dt)))); g.drawImage(im, (PW - 200) / 2, y, 200, 94); y += 104; } catch { /* no stamp */ }
   if (mark) text("PREVIEW COPY. Pay to receive the full report as an editable Word document.", { size: 12, align: "center", color: "#a11" });
   finish();
-  // contents list
-  heading({ title: "TABLE OF CONTENTS", level: 1 });
+  // contents, list of figures, list of tables, glossary: laid out like the Word file so the page numbers agree
+  heading({ title: "TABLE OF CONTENTS", level: 1 }); hn = 0;
   for (const s of d.secs) text(`${s.num ? s.num + "  " : ""}${s.title}`, { size: s.level === 1 ? 13 : 12, bold: s.level === 1, indent: (s.level - 1) * 18, after: 1, lh: 18 });
+  text("REFERENCES", { size: 13, bold: true, after: 1, lh: 18 }); for (let i = 0; i < (d.appendices ?? []).length; i++) text(`Appendix ${String.fromCharCode(65 + i)}`, { size: 13, bold: true, after: 1, lh: 18 });
   finish();
-  heading({ title: "GLOSSARY AND ABBREVIATIONS", level: 1 }); table(["Term", "Meaning"], d.abbreviations.map(([a, b]) => [a, b])); finish();
-  const extras = async (id: string) => {
-    for (const t of d.tables.filter((x) => x.after === id)) { caption("Table", t.caption); table(t.head, t.rows); }
-    for (const f of d.figures.filter((x) => x.after === id)) { await picture(f.buf, f.w, f.h, /geoelectric section at station/i.test(f.caption) ? 420 : 340); caption("Figure", f.caption); }
+  const nFig = d.figures.length + (d.appendices ?? []).filter((x) => x.figure).length, nTab = d.tables.length + Object.values(d.flow ?? {}).flat().filter((f) => "table" in f).length + (d.appendices ?? []).filter((x) => !x.figure && !x.blocks && !x.plates).length;
+  heading({ title: "LIST OF FIGURES", level: 1 }); for (let i = 0; i < nFig; i++) text(`Figure ${i + 1}`, { size: 12, after: 2, lh: 18 }); finish();
+  heading({ title: "LIST OF TABLES", level: 1 }); for (let i = 0; i < nTab; i++) text(`Table ${i + 1}`, { size: 12, after: 2, lh: 18 }); finish();
+  heading({ title: "GLOSSARY AND ABBREVIATIONS", level: 1 }); hn = 0; table(["Term", "Meaning"], d.abbreviations.map(([a, b]) => [a, b])); finish();
+  const extraList = (id: string): (() => Promise<void>)[] => {
+    const ts = d.tables.filter((x) => x.after === id).map((t) => async () => { caption("Table", t.caption); table(t.head, t.rows); });
+    const fs = d.figures.filter((x) => x.after === id).map((f) => async () => { await picture(f.buf, f.w, f.h, /geoelectric section at station/i.test(f.caption) ? 420 : 340); caption("Figure", f.caption); });
+    const out: (() => Promise<void>)[] = []; for (let i = 0; i < Math.max(ts.length, fs.length); i++) { if (fs[i]) out.push(fs[i]!); if (ts[i]) out.push(ts[i]!); }
+    return out;
   };
   for (const s of d.secs) {
     heading(s);
+    const items: { isP: boolean; make: () => Promise<void> }[] = [];
     if (d.flow?.[s.id]) {
       for (const f of d.flow[s.id]!) {
-        if ("p" in f) text(f.p, { indent: 0, after: 7 });
-        else if ("table" in f) { caption("Table", f.table.caption); table(f.table.head, f.table.rows); }
-        else for (const b of f.bullets) text(`•  ${b}`, { indent: 14, after: 3 });
+        if ("p" in f) items.push({ isP: true, make: async () => text(f.p, { indent: 0, after: 7 }) });
+        else if ("table" in f) items.push({ isP: false, make: async () => { caption("Table", f.table.caption); table(f.table.head, f.table.rows); } });
+        else items.push({ isP: false, make: async () => { for (const b of f.bullets) text(`•  ${b}`, { indent: 14, after: 3 }); } });
       }
-    } else for (const p of d.text[s.id] ?? []) text(p, { after: 7 });
-    await extras(s.id);
+    } else for (const p of d.text[s.id] ?? []) items.push({ isP: true, make: async () => text(p, { after: 7 }) });
+    // pictures, charts and tables sit between paragraphs, spread through the section
+    const ex = extraList(s.id), at = spread(ex.length, items.filter((x) => x.isP).length);
+    let pc = 0, ei = 0;
+    for (const it of items) { await it.make(); if (it.isP) { pc++; while (ei < ex.length && at[ei]! <= pc) await ex[ei++]!(); } }
+    while (ei < ex.length) await ex[ei++]!();
   }
-  heading({ title: "REFERENCES", num: "9.0", level: 1 }); d.references.forEach((r, i) => text(`${i + 1}.  ${r}`, { size: 12.5, after: 3, indent: 12 }));
+  finish(); heading({ title: "REFERENCES", num: "9.0", level: 1 }); d.references.forEach((r, i) => text(`${i + 1}.  ${r}`, { size: 12.5, after: 3, indent: 12 }));
   if (!mark) {
     for (let i = 0; i < (d.appendices ?? []).length; i++) {
-      const a = d.appendices![i]!; finish();
+      const a = d.appendices![i]!; if (i === 0) finish();
       heading({ title: `Appendix ${String.fromCharCode(65 + i)}: ${a.title}`, level: 1 });
       if (a.intro) text(a.intro, { after: 7 });
       if (a.figure) { await picture(a.figure.buf, a.figure.w, a.figure.h, 420); caption("Figure", a.caption); }
@@ -124,6 +136,7 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
     }
   } else if (d.appendices?.length) { finish(); text("APPENDICES", { size: 20, bold: true, color: NAVY, after: 8 }); for (let i = 0; i < d.appendices.length; i++) text(`Appendix ${String.fromCharCode(65 + i)}: ${d.appendices[i]!.title}`, { size: 13, after: 3 }); text("The appendices are included in the full report after you pay.", { size: 12, color: "#555" }); }
   finish();
+  d.pageMap = pm;
   return pdfOf(pages, Math.round(PW * SCALE), Math.round(PH * SCALE));
 }
 
