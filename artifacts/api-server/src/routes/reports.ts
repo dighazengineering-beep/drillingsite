@@ -504,6 +504,13 @@ router.get("/reports/:id/download", async (req, res) => {
   res.set({ "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Content-Disposition": `attachment; filename="${name}"` }).send(r.rows[0].docx);
 });
 
+router.get("/reports/:id/pdf", async (req, res) => {
+  const r = await pool.query("SELECT clean_pdf, title FROM hydro_reports WHERE id=$1", [id(req)]);
+  if (!r.rows[0]?.clean_pdf) return void res.status(404).json({ error: "Not generated yet" });
+  const name = `Hydrogeological Survey Report - ${String(r.rows[0].title).replace(/[^\w .-]+/g, "")}.pdf`;
+  res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${name}"` }).send(r.rows[0].clean_pdf);
+});
+
 /** A deploy or restart kills a report that is being written in the background. On start, write those reports again (at most twice each). */
 if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
   setTimeout(async () => {

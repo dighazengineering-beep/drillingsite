@@ -6,6 +6,8 @@ import { siteUrl } from "../lib/mailer";
 import { claudeReady } from "../lib/claude";
 import { ensureDocs } from "./clientDocs";
 import { memberFrom } from "./members";
+import { isAdminKey, adminEmails } from "../lib/adminAuth";
+import { companyInfo } from "../lib/company";
 import { elevationAt } from "../lib/elevation";
 import { normaliseShot, readCoordinates } from "../lib/hydroAi";
 import { pastDetails, ensureReportTables, queued, runningReports, getReportData, setReportData, reportFile, liveOf, stopReport } from "./reports";
@@ -14,11 +16,33 @@ import { pastDetails, ensureReportTables, queued, runningReports, getReportData,
 const router = Router();
 
 export const PLANS = {
-  one: { item: "Hydrogeological survey report (one-time)", price: 950, qty: 1, days: 0, label: "One report", blurb: "Pay once for one report." },
-  sub: { item: "Hydrogeological survey report (monthly plan)", price: 3550, qty: 7, days: 30, label: "Monthly plan", blurb: "Regular reports for a month, one payment." },
+  one: { item: "Hydrogeological survey report (one-time)", price: 900, qty: 1, days: 0, label: "Per report", blurb: "Pay once for one report." },
+  sub: { item: "Hydrogeological survey report (monthly plan)", price: 4000, qty: 7, days: 30, label: "Per month", blurb: "Up to 7 reports in a month, one payment." },
+  year: { item: "Hydrogeological survey report (yearly plan)", price: 10000, qty: 30, days: 365, label: "Per year", blurb: "Up to 30 reports in a year, one payment." },
   boost: { item: "Hydrogeological survey report (booster pack)", price: 1900, qty: 7, days: 0, label: "Booster pack", blurb: "More reports for the rest of your month." },
 } as const;
 type PlanKey = keyof typeof PLANS;
+
+/** Writing a report costs AI credits, so only approved emails can make one. The admin adds them in the admin panel; the admin emails always can. */
+let accessReady: Promise<unknown> | null = null;
+const ensureAccess = () => (accessReady ??= pool.query("CREATE TABLE IF NOT EXISTS report_access (email TEXT PRIMARY KEY, note TEXT NOT NULL DEFAULT '', added_at TIMESTAMPTZ NOT NULL DEFAULT now())"));
+async function mayWrite(email: unknown) {
+  const e = String(email ?? "").trim().toLowerCase(); if (!e) return false;
+  if (adminEmails().includes(e)) return true;
+  await ensureAccess(); return !!(await pool.query("SELECT 1 FROM report_access WHERE email=$1", [e])).rows[0];
+}
+const waLink = (email: string) => { const c = companyInfo(); const n = c.whatsapp; return { whatsapp: n ? `+${n}` : c.phone, url: n ? `https://wa.me/${n}?text=${encodeURIComponent(`Hello, I would like to generate a hydrogeological survey report on your website. My email is ${email}.`)}` : "" }; };
+const adminOnly = (req: Request, res: Response, next: () => void) => (isAdminKey(req.header("x-admin-key")) ? next() : void res.status(401).json({ error: "Admin only" }));
+router.get("/report-access", adminOnly, async (_q, res) => { await ensureAccess(); res.json({ list: (await pool.query("SELECT email, note, added_at FROM report_access ORDER BY added_at DESC")).rows }); });
+router.post("/report-access", adminOnly, async (req, res) => {
+  const email = String(req.body?.email ?? "").trim().toLowerCase(); if (!/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(email)) return void res.status(400).json({ error: "Type a proper email address." });
+  await ensureAccess(); await pool.query("INSERT INTO report_access (email, note) VALUES ($1,$2) ON CONFLICT (email) DO UPDATE SET note=EXCLUDED.note", [email, String(req.body?.note ?? "").slice(0, 120)]); res.json({ ok: true });
+});
+router.delete("/report-access/:email", adminOnly, async (req, res) => { await ensureAccess(); await pool.query("DELETE FROM report_access WHERE email=$1", [String(req.params.email).toLowerCase()]); res.json({ ok: true }); });
+router.get("/my-reports/access", async (req, res) => {
+  const m = await memberFrom(req); if (!m) return void res.status(401).json({ error: "signin" });
+  res.json({ allowed: await mayWrite(m.email), ...waLink(String(m.email ?? "")) });
+});
 
 const num = (v: unknown) => Number(v);
 export const phoneOf = (v: unknown) => { const d = String(v ?? "").replace(/\D/g, ""); return /^254[17]\d{8}$/.test(d) ? d : /^0[17]\d{8}$/.test(d) ? `254${d.slice(1)}` : /^[17]\d{8}$/.test(d) ? `254${d}` : ""; };
@@ -283,6 +307,10 @@ router.post("/my-reports/:id/submit", async (req, res) => {
     if (!d.picks.length) return void res.status(400).json({ error: "Add at least one section picture with its point number." });
     if (!d.picks.some((p: any) => p.recommended)) return void res.status(400).json({ error: "Tick the recommended point." });
     for (const k of ["clientName", "county", "subcounty", "lat", "lng", "instrument"]) if (!String(d[k] ?? "").trim()) return void res.status(400).json({ error: "Please fill in the missing details (name, county, sub-county, coordinates, instrument)." });
+    if (PAYMENTS_ON) {
+      const m0 = await memberFrom(req); if (!m0) return void res.status(401).json({ error: "signin" });
+      if (!(await mayWrite(m0.email))) return void res.status(403).json({ error: "access", ...waLink(String(m0.email ?? "")) });
+    }
     await client.query("BEGIN");
     let unlocked = true; let memberId: number | null = null;
     if (PAYMENTS_ON) {

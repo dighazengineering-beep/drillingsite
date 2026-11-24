@@ -12,7 +12,7 @@ import { countySuggestions, subCountySuggestions, wardSuggestions, villageSugges
 import { parseCoords } from "@/lib/coords";
 const MapPicker = lazy(() => import("@/components/MapPicker"));
 
-interface Plan { key: "one" | "sub" | "boost"; item: string; price: number; label: string; blurb: string }
+interface Plan { key: "one" | "sub" | "year" | "boost"; item: string; price: number; label: string; blurb: string }
 interface Rep { id: number; title: string; status: string; progress: string; ready: boolean; unlocked?: boolean; preview?: boolean; released: boolean; error: string; createdAt: string }
 interface W { can: boolean; subUntil: string | null; canBoost: boolean; reports: Rep[] }
 interface Pick { fileId: number; station: string; recommended: boolean; yieldText: string; reason: string; zoneFrom: number; zoneTo: number }
@@ -498,13 +498,15 @@ function Form({ free, plans, auth, w, onAuth, onDone }: { free: boolean; plans: 
     if (!picks.some((p) => p.recommended)) return "Tick the recommended point.";
     return "";
   };
+  const [noAccess, setNoAccess] = useState<{ whatsapp: string; url: string } | null>(null);
   const send = async (a: { phone: string; key: string }): Promise<string | null> => {
     const dr = await ensureDraft(); if (!dr) return "Could not start.";
     for (const [k, data] of Object.entries(docs)) { try { await fetch(`${API}/api/my-docs/${k}?${q(a)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data }) }); } catch { /* optional */ } }
     const attachDocs = DOCS.map(([k]) => k).filter((k) => (docs[k] || saved[k]) && !skip[k]).join(",");
-    const r = await fetch(`${API}/api/my-reports/${dr.id}/submit?${q(a)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: dr.token, data: { ...d, picks, attachDocs } }) });
+    const r = await fetch(`${API}/api/my-reports/${dr.id}/submit?${q(a)}`, { method: "POST", headers: { "Content-Type": "application/json", ...(memberToken() ? { Authorization: `Bearer ${memberToken()}` } : {}) }, body: JSON.stringify({ token: dr.token, data: { ...d, picks, attachDocs } }) });
     const j = await r.json().catch(() => ({}));
     if (r.status === 401 && j.error === "signin") return "signin";
+    if (r.status === 403 && j.error === "access") { setNoAccess({ whatsapp: String(j.whatsapp ?? ""), url: String(j.url ?? "") }); return "noaccess"; }
     if (r.status === 402) { setNeedBoost(j.error === "boost"); return j.error === "boost" ? null : "Please pay to submit."; }
     if (!r.ok) return j.error || "Could not submit.";
     if (!free && hasCredit) { try { await fetch(`${API}/api/my-reports/${dr.id}/unlock?${q(a)}`, { method: "POST" }); } catch { /* the client can unlock from the list */ } }
@@ -520,7 +522,7 @@ function Form({ free, plans, auth, w, onAuth, onDone }: { free: boolean; plans: 
       if (r.status === 401) { setMemberToken(""); setShowGate(true); setBusy(false); return; }
       if (!r.ok) { setErr(j.error || "Could not start."); setBusy(false); return; }
       const a = { phone: j.phone as string, key: j.key as string }; onAuth(a);
-      const bad = await send(a); if (bad === "signin") { setMemberToken(""); setShowGate(true); } else if (bad) setErr(bad);
+      const bad = await send(a); if (bad === "signin") { setMemberToken(""); setShowGate(true); } else if (bad && bad !== "noaccess") setErr(bad);
     } catch { setErr("Could not start. Check your connection."); }
     setBusy(false);
   };
@@ -536,7 +538,7 @@ function Form({ free, plans, auth, w, onAuth, onDone }: { free: boolean; plans: 
         const j = await r.json().catch(() => ({}));
         if (!r.ok) { setErr(j.error || "Could not start."); setBusy(false); return; }
         const a = { phone: j.phone as string, key: j.key as string }; onAuth(a);
-        const bad = await send(a); if (bad) setErr(bad);
+        const bad = await send(a); if (bad && bad !== "noaccess") setErr(bad);
       } catch { setErr("Could not start. Check your connection."); }
       setBusy(false); return;
     }
@@ -657,7 +659,14 @@ function Form({ free, plans, auth, w, onAuth, onDone }: { free: boolean; plans: 
       </div>
 
       {err && <p className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">{err}</p>}
-      {showGate ? (
+      {noAccess ? (
+        <div className="space-y-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-sm text-foreground">
+          <p className="font-bold">Report writing is by approval</p>
+          <p>Your form is filled in and saved. To have your report generated, please contact us on WhatsApp{noAccess.whatsapp ? <> (<b>{noAccess.whatsapp}</b>)</> : ""}. We will activate your account, then you come back and press “Make my report”.</p>
+          {noAccess.url && <a href={noAccess.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white">Chat on WhatsApp</a>}
+          <button type="button" onClick={() => setNoAccess(null)} className="ml-2 rounded-xl border border-border px-3 py-2 text-xs font-bold">Try again</button>
+        </div>
+      ) : showGate ? (
         <div ref={payRef}><MemberGate initial={{ name: d.clientName ?? "", email: d.clientEmail ?? "", phone: d.clientPhone ?? "" }} done={() => void startPreview()} /></div>
       ) : needBoost && free ? (
         <div ref={payRef}><PayBox plans={plans} boostOnly={needBoost} disabled={false} ready={send} initial={{ name: d.clientName ?? "", phone: d.clientPhone ?? "", email: d.clientEmail ?? "" }} note={needBoost ? "You have used the reports in your plan. A booster pack lets you continue until your month ends." : ""} /></div>

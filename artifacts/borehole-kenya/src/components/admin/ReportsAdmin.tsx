@@ -160,6 +160,27 @@ function MapCropper({ src, name: n0, onCancel, onDone }: { src: string; name: st
   );
 }
 
+function AccessPanel({ h }: { h: Record<string, string> }) {
+  const [list, setList] = useState<{ email: string; note: string }[]>([]); const [email, setEmail] = useState(""); const [note, setNote] = useState(""); const [msg, setMsg] = useState("");
+  const load = useCallback(() => fetch(`${API}/api/report-access`, { headers: h }).then((r) => r.json()).then((j) => setList(j.list ?? [])).catch(() => {}), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, [load]);
+  const add = async () => { const r = await fetch(`${API}/api/report-access`, { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ email, note }) }); const j = await r.json().catch(() => ({})); if (!r.ok) setMsg(j.error ?? "Could not add."); else { setMsg("Added. They can now make reports."); setEmail(""); setNote(""); void load(); } };
+  const del = async (e: string) => { if (!confirm(`Remove ${e}?`)) return; await fetch(`${API}/api/report-access/${encodeURIComponent(e)}`, { method: "DELETE", headers: h }); void load(); };
+  return (
+    <div className={`${box} space-y-2`}>
+      <h3 className="text-sm font-bold text-foreground">Who can make reports ({list.length})</h3>
+      <p className="text-xs text-muted-foreground">Writing a report uses AI credits, so only the emails listed here can press “Make my report” on the site. Anyone else is sent to WhatsApp to ask you. Once added, the person sees the packages: KSh 900 per report, KSh 4,000 per month, KSh 10,000 per year. They sign in on the site with this same email.</p>
+      <div className="flex flex-wrap gap-2">
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Client's email (the one they sign in with)" className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Name / note (optional)" className="min-w-[140px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
+        <button onClick={add} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Add</button>
+      </div>
+      {msg && <p className="text-xs font-semibold text-foreground">{msg}</p>}
+      {list.map((x) => <div key={x.email} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-xs"><span className="min-w-0 truncate text-foreground"><b>{x.email}</b>{x.note ? ` · ${x.note}` : ""}</span><button onClick={() => void del(x.email)} className="shrink-0 font-bold text-red-600">Remove</button></div>)}
+    </div>
+  );
+}
+
 export default function ReportsAdmin({ adminKey, onBadAdmin }: { adminKey: string; onBadAdmin: () => void }) {
   const h = { "x-admin-key": adminKey };
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -181,6 +202,7 @@ export default function ReportsAdmin({ adminKey, onBadAdmin }: { adminKey: strin
         <div><h2 className="text-lg font-bold text-foreground">Reports</h2><p className="text-xs text-muted-foreground">Hydrogeological survey reports written from your survey data, as a Word file.</p></div>
         <button onClick={create} className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"><Plus className="h-4 w-4" /> New report</button>
       </div>
+      <AccessPanel h={h} />
       {!ai && <p className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-foreground">The AI key is not set on the server yet (ANTHROPIC_API_KEY on Render). You can fill in the form, but reading pictures and writing the report need it.</p>}
       {drafts.length > 0 && (
         <div className={`${box} space-y-2`}>
@@ -541,6 +563,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
         <div className="flex flex-wrap gap-2">
           <button disabled={!ai || busy === "gen" || st.status === "working"} onClick={() => generate(false)} className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50"><Sparkles className="h-4 w-4" /> {st.has ? "Write it again" : "Write the report"}</button>
           {st.has && <button onClick={() => setView((v) => !v)} className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold text-foreground">{view ? "Hide the report" : "View the full report"}</button>}
+          {st.has && <button onClick={async () => { const r = await fetch(`${API}/api/reports/${id}/pdf`, { headers: h }); if (!r.ok) { alert("The PDF is not ready."); return; } const b = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `Report-${id}.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }} className="flex items-center gap-1.5 rounded-xl border border-primary px-4 py-2.5 text-sm font-bold text-primary"><Download className="h-4 w-4" /> Download PDF</button>}
           {st.has && <button onClick={download} className="flex items-center gap-1.5 rounded-xl border border-primary px-4 py-2.5 text-sm font-bold text-primary"><Download className="h-4 w-4" /> Download Word file</button>}
           {st.has && <button disabled={!ai || st.status === "working"} onClick={() => generate(true)} className="rounded-xl border border-border px-3 py-2.5 text-xs font-bold text-foreground">Write again with fresh area research</button>}
         </div>
