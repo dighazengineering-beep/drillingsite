@@ -1,3 +1,4 @@
+import { checkCancel } from "./cancel";
 /** Small Claude API client (plain fetch, no SDK). Reads ANTHROPIC_API_KEY. Web search is the API's own server tool; the sources it really opened are returned so references never come from the model's memory. */
 /**
  * Which AI does the work. REPORT_AI=openai | anthropic | gemini forces that one. REPORT_AI=free (or auto) shares the work between the FREE services
@@ -143,6 +144,7 @@ const GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b
 let groqAt = 0;
 const groqModel = () => process.env.GROQ_MODEL || GROQ_MODELS[Math.min(groqAt, GROQ_MODELS.length - 1)];
 async function pool(o: CallOpts): Promise<ClaudeOut> {
+  checkCancel();
   // One slot per key: two Gemini keys are two slots, each with its own pause and its own limit.
   const slots = freeNames().flatMap((n) => ENV_KEYS[n]().map((key, i) => ({ id: `${n}#${i}`, n, key })));
   const needs = !!o.search || o.messages.some((m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image"));
@@ -183,6 +185,7 @@ async function pool(o: CallOpts): Promise<ClaudeOut> {
 }
 
 export async function claude(o: CallOpts): Promise<ClaudeOut> {
+  checkCancel();
   const pv = provider();
   if (pv === "hybrid") {
     // OpenAI does the main work. Plain, simple writing goes to the free services first. Whichever side fails, the other finishes the job.

@@ -163,6 +163,7 @@ export default function Report() {
               <div key={r.id} className="rounded-xl border border-border p-3"><div className="flex items-center justify-between gap-3">
                 <div className="min-w-0"><div className="truncate text-sm font-semibold text-foreground">{r.title || "Survey report"}</div>
                   <div className="text-xs text-muted-foreground">{r.ready ? "Ready" : r.status === "failed" ? r.error : r.status === "review" ? "Being checked by our hydrogeologist. We will SMS you." : r.progress || "Being written…"}</div></div>
+                {r.status === "working" && <button onClick={() => { if (confirm("Stop writing this report?")) void rApi(`/${r.id}/stop`, "POST").then(() => refresh()).catch(() => {}); }} className="shrink-0 rounded-lg border border-red-500/60 px-3 py-2 text-xs font-bold text-red-600">Stop</button>}
                 {r.ready ? <div className="flex shrink-0 flex-col gap-1.5">
                   {r.preview && <button onClick={() => void getFile(r.id, "preview", `${r.unlocked === false ? "Preview" : "Report"} - ${r.title}.pdf`)} className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground"><Download className="h-4 w-4" /> {r.unlocked === false ? "PDF (watermarked)" : "Download PDF"}</button>}
                   {r.unlocked === false

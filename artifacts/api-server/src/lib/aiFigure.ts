@@ -1,3 +1,4 @@
+import { checkCancel } from "./cancel";
 /** Conceptual figures drawn by the OpenAI image model when OPENAI_API_KEY is set, otherwise by Gemini (GEMINI_API_KEY). Returns null when no key is set or the call fails, and the report simply goes without that figure. */
 import { loadImage } from "@napi-rs/canvas";
 import { geminiKeys } from "./claude";
@@ -35,6 +36,7 @@ const imageModel = () => IMAGE_MODELS()[Math.min(imageAt, IMAGE_MODELS().length 
 const modelGone = (status: number, t: string) => status === 404 || (/model/i.test(t) && /not found|does not exist|deprecated|no access|not have access|invalid/i.test(t));
 
 export async function aiFigure(prompt: string, size: "1536x1024" | "1024x1024" = "1536x1024"): Promise<{ png: Buffer; w: number; h: number } | null> {
+  checkCancel();
   const key = process.env.OPENAI_API_KEY;
   if (!key) return geminiImage(prompt, [], size === "1024x1024" ? "1:1" : "3:2");
   for (let tryN = 0; tryN < 4; tryN++) {
@@ -78,6 +80,7 @@ export interface SectionFacts { station: string; zoneFrom: number; zoneTo: numbe
 
 /** Analysed picture of the machine screenshot, in the layout of the reference sample, drawn by the OpenAI image model. */
 export async function analysedSection(raw: Buffer, v: SectionFacts): Promise<{ png: Buffer; w: number; h: number } | null> {
+  checkCancel();
   const key = process.env.OPENAI_API_KEY, ref = sample();
   if (!ref || process.env.ANALYSED_AI === "off") return null;
   const prompt = `Image 1 is the REAL field section measured by a ${v.instrument || "groundwater resistivity"} instrument. Image 2 is ONLY a layout and style reference of a finished analysed picture: copy its layout, panels and styling, but NEVER copy its numbers, dates, station, depths, formation names or any of its text.

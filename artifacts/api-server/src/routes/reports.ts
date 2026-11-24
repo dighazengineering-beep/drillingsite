@@ -1,3 +1,4 @@
+import { startRun, stopRun, checkCancel, stopped } from "../lib/cancel";
 import express, { Router, type Request, type Response, type NextFunction } from "express";
 import { pool } from "@workspace/db";
 import { isAdminKey } from "../lib/adminAuth";
@@ -204,7 +205,7 @@ const rawNotes = (p: any, data: Record<string, any>, recommended: boolean) => ({
 const dms = (v: number, pos: string, neg: string) => { const a = Math.abs(v), d = Math.floor(a), m = Math.floor((a - d) * 60), s = ((a - d) * 60 - m) * 60; return `${d}°${String(m).padStart(2, "0")}′${s.toFixed(2).padStart(5, "0")}″ ${v >= 0 ? pos : neg}`; };
 const ordinal = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"];
 
-async function setProgress(rid: number, status: string, progress: string, error = "") { await pool.query("UPDATE hydro_reports SET status=$2, progress=$3, error=$4, updated_at=now() WHERE id=$1", [rid, status, progress, error]); }
+async function setProgress(rid: number, status: string, progress: string, error = "") { if (status === "working") checkCancel(); await pool.query("UPDATE hydro_reports SET status=$2, progress=$3, error=$4, updated_at=now() WHERE id=$1", [rid, status, progress, error]); }
 const running = new Set<number>();
 
 router.post("/reports/:id/generate", async (req, res) => {
@@ -216,13 +217,20 @@ router.post("/reports/:id/generate", async (req, res) => {
   void queued(rid, !!req.body?.refreshFacts);
 });
 
+/** Stop a report that is being written. It ends at its next step, and can be started again. */
+export async function stopReport(rid: number) {
+  stopRun(rid); live.delete(rid); running.delete(rid);
+  await pool.query("UPDATE hydro_reports SET status='failed', progress='', error='Stopped. You can start again.', resumes=9, updated_at=now() WHERE id=$1", [rid]);
+}
+router.post("/reports/:id/stop", async (req, res) => { await stopReport(id(req)); res.json({ ok: true }); });
+
 // at most two reports are written at the same time, so the server's memory is safe
 let active = 0; const waiting: (() => void)[] = [];
 export async function queued(rid: number, refresh: boolean) {
   running.add(rid);
   if (active >= 2) { await setProgress(rid, "working", "In the queue…"); await new Promise<void>((ok) => waiting.push(ok)); }
   active++;
-  try { await run(rid, refresh); } finally { active--; running.delete(rid); waiting.shift()?.(); }
+  try { await startRun(rid, () => run(rid, refresh)); } finally { active--; running.delete(rid); waiting.shift()?.(); }
 }
 
 /** What the client watches while the report is written: the title page, then each section as the code confirms it. */
@@ -477,6 +485,7 @@ async function run(rid: number, refresh: boolean) {
       if (own) smsOwner("A paid survey report is ready for your review in Admin > Reports.");
     }
   } catch (e) {
+    if ((e as Error).message === stopped) return;
     live.delete(rid);
     await setProgress(rid, "failed", "", String((e as Error).message).slice(0, 400));
   }

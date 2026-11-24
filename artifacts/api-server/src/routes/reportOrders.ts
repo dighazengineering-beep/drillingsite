@@ -8,7 +8,7 @@ import { ensureDocs } from "./clientDocs";
 import { memberFrom } from "./members";
 import { elevationAt } from "../lib/elevation";
 import { normaliseShot, readCoordinates } from "../lib/hydroAi";
-import { pastDetails, ensureReportTables, queued, runningReports, getReportData, setReportData, reportFile, liveOf } from "./reports";
+import { pastDetails, ensureReportTables, queued, runningReports, getReportData, setReportData, reportFile, liveOf, stopReport } from "./reports";
 
 /** The paid survey-report service for clients. Money arrives through the normal M-Pesa payment; credits are worked out here from CONFIRMED payments of the exact price, never from what the browser says. */
 const router = Router();
@@ -139,6 +139,16 @@ router.post("/my-reports/test-access", async (req, res) => {
 });
 
 // the report as it is being written: title page first, then each section once the code has confirmed it
+router.post("/my-reports/:id/stop", async (req, res) => {
+  try {
+    const phone = who(req, res); if (!phone) return;
+    const rid = Math.floor(Number(req.params.id));
+    const o = (await pool.query("SELECT owner_phone, status FROM hydro_reports WHERE id=$1", [rid])).rows[0];
+    if (!o || o.owner_phone !== phone) return void res.status(404).json({ error: "Not found" });
+    await stopReport(rid); res.json({ ok: true });
+  } catch { res.status(500).json({ error: "Could not stop." }); }
+});
+
 router.get("/my-reports/:id/live", async (req, res) => {
   try {
     const phone = who(req, res); if (!phone) return;

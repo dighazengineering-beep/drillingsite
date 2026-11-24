@@ -531,7 +531,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
 
       <section className={`${box} border-primary/40`}>
         <h3 className="mb-2 font-bold text-foreground">Write the report</h3>
-        {st.status === "working" && <p className="mb-2 flex items-center gap-2 text-sm text-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {st.progress || "Working…"} <span className="text-xs text-muted-foreground">(a few minutes; you can leave this page)</span></p>}
+        {st.status === "working" && <p className="mb-2 flex items-center gap-2 text-sm text-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {st.progress || "Working…"} <span className="text-xs text-muted-foreground">(a few minutes; you can leave this page)</span> <button onClick={async () => { if (!confirm("Stop writing this report?")) return; await fetch(`${API}/api/reports/${id}/stop`, { method: "POST", headers: h }); void load(); }} className="ml-auto rounded-lg border border-red-500/60 px-3 py-1 text-xs font-bold text-red-600">Stop</button></p>}
         {st.status === "working" && <LiveReport id={id} url={`${API}/api/reports/${id}/live`} headers={h} />}
         {st.status === "failed" && <p className="mb-2 rounded-lg bg-red-500/10 p-2 text-sm text-red-700 dark:text-red-300">Failed: {st.error}</p>}
         <div className="flex flex-wrap gap-2">
