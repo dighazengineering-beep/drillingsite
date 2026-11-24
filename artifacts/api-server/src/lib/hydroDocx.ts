@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { stampSvg, stampDate } from "./companyStamp";
 import { photoCard, sideCard, type NoteExtra } from "./hydroFigures";
 import {
@@ -218,5 +219,13 @@ new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { befo
       children: kids,
     }],
   });
-  return Packer.toBuffer(doc);
+  const raw = await Packer.toBuffer(doc);
+  // the page-number and caption-number fields are saved in their full form (with the number already in them), which every viewer shows and Word can still update
+  try {
+    const zip = await JSZip.loadAsync(raw); const x = await zip.file("word/document.xml")!.async("string");
+    const fixed = x.replace(/<w:fldSimple w:instr="([^"]*)">(<w:r>[\s\S]*?<\/w:r>)<\/w:fldSimple>/g, (_m, ins, r) =>
+      `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${ins} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${r}<w:r><w:fldChar w:fldCharType="end"/></w:r>`);
+    zip.file("word/document.xml", fixed);
+    return await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  } catch { return raw; }
 }

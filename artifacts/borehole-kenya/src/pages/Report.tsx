@@ -3,6 +3,7 @@ import { MapBoundary } from "@/components/MapBoundary";
 import { ReasonPicker, RecommendToggle, POINT_YES, POINT_NO } from "@/components/ReasonPicker";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, LocateFixed, ScanLine, FileText, Loader2, CheckCircle2, Upload, Download, Trash2, Lock, LockOpen, Smartphone, Sparkles, ImageIcon } from "lucide-react";
+import WordView from "@/components/WordView";
 import { API, memberApi, memberToken, setMemberToken } from "@/lib/member";
 import { PhoneField } from "@/components/PhoneField";
 import { DateSelect, todayLong } from "@/components/DateSelect";
@@ -134,6 +135,7 @@ export default function Report() {
   }, []);
 
   const [unlockId, setUnlockId] = useState<number | null>(null);
+  const [viewId, setViewId] = useState<number | null>(null);
   const getFile = async (id: number, what: "preview" | "download", name: string) => {
     let x: Response; try { x = await fetch(`${API}/api/my-reports/${id}/${what}?${q(auth!)}`); } catch { alert("The download could not start. Check your internet and try again."); return; }
     if (!x.ok) { let m = ""; try { m = ((await x.json()) as { error?: string }).error ?? ""; } catch { /* not json */ } alert(m || `The download failed (error ${x.status}). Please try again in a minute.`); return; }
@@ -164,13 +166,14 @@ export default function Report() {
                 <div className="min-w-0"><div className="truncate text-sm font-semibold text-foreground">{r.title || "Survey report"}</div>
                   <div className="text-xs text-muted-foreground">{r.ready ? "Ready" : r.status === "failed" ? r.error : r.status === "review" ? "Being checked by our hydrogeologist. We will SMS you." : r.progress || "Being written…"}</div></div>
                 {r.status === "working" && <button onClick={() => { if (confirm("Stop writing this report?")) void rApi(`/${r.id}/stop`, "POST").then(() => refresh()).catch(() => {}); }} className="shrink-0 rounded-lg border border-red-500/60 px-3 py-2 text-xs font-bold text-red-600">Stop</button>}
+                {r.ready && <button onClick={() => setViewId(viewId === r.id ? null : r.id)} className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground">{viewId === r.id ? "Hide" : "View report"}</button>}
                 {r.ready ? <div className="flex shrink-0 flex-col gap-1.5">
                   {r.preview && <button onClick={() => void getFile(r.id, "preview", `${r.unlocked === false ? "Preview" : "Report"} - ${r.title}.pdf`)} className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground"><Download className="h-4 w-4" /> {r.unlocked === false ? "PDF (watermarked)" : "Download PDF"}</button>}
                   {r.unlocked === false
                     ? <button onClick={() => setUnlockId(unlockId === r.id ? null : r.id)} className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"><Lock className="h-4 w-4" /> Word: pay to unlock</button>
                     : <button onClick={() => void getFile(r.id, "download", `Hydrogeological Survey Report - ${r.title}.docx`)} className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"><LockOpen className="h-4 w-4" /> Download Word</button>}
                 </div> : r.status === "failed" ? null : <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
-              </div>{auth && <ReportDetails id={r.id} auth={auth} />}</div>
+              </div>{viewId === r.id && auth && <WordView url={`${API}/api/my-reports/${r.id}/${r.unlocked === false ? "preview" : "download"}?${q(auth)}`} pdf={r.unlocked === false} onClose={() => setViewId(null)} />}{auth && <ReportDetails id={r.id} auth={auth} />}</div>
             ))}
           </div>
         </div>

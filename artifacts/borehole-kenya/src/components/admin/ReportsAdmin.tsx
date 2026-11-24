@@ -1,3 +1,4 @@
+import WordView from "../WordView";
 import { ReasonPicker, RecommendToggle, POINT_YES, POINT_NO } from "@/components/ReasonPicker";
 import { LiveReport } from "@/pages/Report";
 import { lazy, Suspense } from "react";
@@ -371,6 +372,7 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
       setPrev({ i, url: URL.createObjectURL(await r.blob()) });
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(""); }
   };
+  const [view, setView] = useState(false);
   const generate = async (refresh = false) => {
     setMsg(""); setBusy("gen");
     try {
@@ -536,9 +538,11 @@ function Editor({ id, adminKey, ai, back }: { id: number; adminKey: string; ai: 
         {st.status === "failed" && <p className="mb-2 rounded-lg bg-red-500/10 p-2 text-sm text-red-700 dark:text-red-300">Failed: {st.error}</p>}
         <div className="flex flex-wrap gap-2">
           <button disabled={!ai || busy === "gen" || st.status === "working"} onClick={() => generate(false)} className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50"><Sparkles className="h-4 w-4" /> {st.has ? "Write it again" : "Write the report"}</button>
+          {st.has && <button onClick={() => setView((v) => !v)} className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold text-foreground">{view ? "Hide the report" : "View the full report"}</button>}
           {st.has && <button onClick={download} className="flex items-center gap-1.5 rounded-xl border border-primary px-4 py-2.5 text-sm font-bold text-primary"><Download className="h-4 w-4" /> Download Word file</button>}
           {st.has && <button disabled={!ai || st.status === "working"} onClick={() => generate(true)} className="rounded-xl border border-border px-3 py-2.5 text-xs font-bold text-foreground">Write again with fresh area research</button>}
         </div>
+        {view && st.has && <WordView url={`${API}/api/reports/${id}/download`} headers={h} onClose={() => setView(false)} />}
         {st.has && st.status !== "working" && <SendLink id={id} h={h} />}
         {st.owner && <div className="mt-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-foreground">Paid client report from {st.owner}. Read the Word file, fix anything above (then “Write it again”), add your stamp details, and release it. The client cannot download it until you release it.
           <div className="mt-2">{st.released ? <button onClick={() => release(false)} className="rounded-lg border border-border px-3 py-2 text-xs font-bold">Withdraw from client</button> : <button disabled={!st.has} onClick={() => release(true)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Release to client</button>}</div></div>}
