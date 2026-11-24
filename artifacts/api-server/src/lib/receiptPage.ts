@@ -1,3 +1,4 @@
+import { PHOTO_JS } from "./receiptPhoto";
 import { RIG_SVG } from "./receiptRig";
 import { shareButtons } from "./shareButtons";
 import { companyInfo } from "./company";
@@ -130,9 +131,10 @@ hr{border:0;border-top:1.5px solid var(--navy);margin:0}
 .rf{font-size:10px;color:var(--mut);margin-top:0}
 .thx{text-align:center;font:600 13px/1.2 "Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;color:var(--navy);letter-spacing:.02em;margin-top:2px}.thx small{display:block;font-weight:500;font-size:10px;color:var(--mut);letter-spacing:0;margin-top:1px}
 .foot{text-align:center;font-size:9px;color:var(--mut);margin-top:3px;border-top:1px solid #e2e8f0;padding-top:2px}
+.sheet.cap .perf{display:none}.off{position:absolute;left:-9999px;top:0;width:800px}@media print{#phv{display:none!important}.off{position:static!important;width:auto}}
 .btns{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}.btns button{border:0;background:var(--navy);color:#fff;font:500 13px Inter,Arial,sans-serif;padding:11px 26px;border-radius:10px;cursor:pointer}.btns button.alt{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}.btns button:disabled{opacity:.6}.sheet.cap{box-shadow:none;border:0}
 @page{size:200mm 100mm;margin:4mm}@media print{.sheet{--page:#fff}body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{box-shadow:none;width:100%;border:0}.btns{display:none}}
-${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none;--page:#fff}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<div class="wrap"><div class="sheet" id="sh">
+${embed ? "body{background:#fff;overflow:hidden}.sheet{box-shadow:none;--page:#fff}" : ""}</style></head><body>${report ? `<div style="max-width:760px;margin:0 auto 14px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:16px 20px;text-align:center;font:400 13px Inter,Arial,sans-serif"><div style="font-weight:600;font-size:15px;margin-bottom:4px">${esc(report.title)}</div><div style="color:#475569;margin-bottom:12px">Thank you for your payment. Tap the button to download your report. Your receipt downloads with it as a separate PDF.</div><button id="rp" style="border:0;background:#0a5cb8;color:#fff;font:600 14px Inter,Arial,sans-serif;padding:12px 30px;border-radius:10px;cursor:pointer">Download report and receipt</button><div style="color:#64748b;font-size:11px;margin-top:8px">If your phone asks to allow multiple downloads, tap Allow.</div></div>` : ""}<img id="phv" alt="Receipt" style="display:none;width:100%;max-width:1100px;margin:0 auto;border-radius:6px;box-shadow:0 6px 26px rgba(0,0,0,.35)"><div class="wrap" id="shw"><div class="sheet" id="sh">
 <div class="wm"></div><div class="perf"></div>
 <div class="top"><img class="lg" src="data:image/png;base64,${RECEIPT_LOGO_B64}" alt="${esc(name)}"><div class="nm"><b>DIGHAZ</b><b class="g">ENGINEERING</b><b>LIMITED</b></div>
 <div class="rt"><div class="pill">RECEIPT</div><div class="nr"><b>No.</b><span class="nb">${esc(d.no)}</span></div></div></div>
@@ -149,22 +151,32 @@ ${fill("For:", forWhat)}</div>
 ${ref ? `<div class="rf">${esc(ref)}</div>` : ""}
 <div class="thx">Thank you for choosing ${esc(name)}<small>Water for life. We drill, you drink.</small></div>
 <div class="foot">This receipt is computer generated and valid with the company stamp.</div>
-</div></div>${embed ? "" : `<div class="btns"><button id="dl">Download PDF</button>${shareButtons([{ label: "Copy link", url: shareUrl }], `Receipt ${d.no}`)}</div>
+</div></div>${embed ? "" : `<div class="btns"><button id="dl">Download PDF</button><button id="dp" class="alt">Download photo (4K)</button>${shareButtons([{ label: "Copy link", url: shareUrl }], `Receipt ${d.no}`)}</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
-<script>(function(){var b=document.getElementById("dl");if(!b)return;var NO=${JSON.stringify(String(d.no).replace(/[^A-Za-z0-9-]/g, ""))};
-// A real PDF exactly the size of the receipt (200 mm wide, as tall as the receipt), so it never turns into an A4 page, whatever the phone or browser
-b.onclick=async function(){var s=document.getElementById("sh"),t=b.textContent;if(!window.html2canvas||!window.jspdf){alert("The PDF tool is still loading. Wait a moment and try again.");return;}
-b.disabled=true;b.textContent="Making PDF…";var z=s.style.zoom;s.style.zoom="";s.classList.add("cap");
-try{var c=await window.html2canvas(s,{scale:4,backgroundColor:"#ffffff",useCORS:true,logging:false});var W=210,H=297,rw=190,rh=Math.round(rw*c.height/c.width*10)/10,rx=(W-rw)/2,ry=(H-rh)/2;
-/* a soft blurred copy of the receipt fills the page behind it, so the receipt looks like a picture lying on the sheet */
-var bg=document.createElement("canvas");bg.width=1240;bg.height=1754;var g=bg.getContext("2d");
-var k=Math.max(bg.width/c.width,bg.height/c.height);g.filter="blur(28px)";g.drawImage(c,(bg.width-c.width*k)/2,(bg.height-c.height*k)/2,c.width*k,c.height*k);g.filter="none";
-g.fillStyle="rgba(71,85,105,.5)";g.fillRect(0,0,bg.width,bg.height);
-var px=bg.width/W;g.shadowColor="rgba(15,23,42,.35)";g.shadowBlur=38;g.shadowOffsetY=10;g.fillStyle="#fff";g.fillRect(rx*px,ry*px,rw*px,rh*px);
-var pdf=new window.jspdf.jsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
-pdf.addImage(bg.toDataURL("image/jpeg",0.85),"JPEG",0,0,W,H);pdf.addImage(c.toDataURL("image/jpeg",0.98),"JPEG",rx,ry,rw,rh);pdf.save("Receipt-"+NO+".pdf");}
+<script>${PHOTO_JS}</script>
+<script>(function(){var b=document.getElementById("dl"),pb=document.getElementById("dp"),s=document.getElementById("sh"),w=document.getElementById("shw"),img=document.getElementById("phv");if(!b)return;var NO=${JSON.stringify(String(d.no).replace(/[^A-Za-z0-9-]/g, ""))};
+var hi=null;
+/* the receipt is made as a photograph: a sheet torn from a receipt book lying on a wooden desk (4K when downloaded) */
+async function make(W){var z=s.style.zoom;s.style.zoom="";s.classList.add("cap");
+try{var c=await window.html2canvas(s,{scale:W>2000?4:2,backgroundColor:"#ffffff",useCORS:true,logging:false,onclone:function(d){var e=d.getElementById("shw");if(e)e.className="wrap";}});return window.dzPhoto(c,NO,W,Math.round(W*9/16));}
+finally{s.classList.remove("cap");s.style.zoom=z;}}
+function ok(){return window.html2canvas&&window.jspdf&&window.dzPhoto;}
+async function big(){if(hi)return hi;try{hi=await make(3840);}catch(e){hi=await make(1920);}return hi;}
+function busy(x,t){x.disabled=true;x.dataset.t=x.textContent;x.textContent=t;}function idle(x){x.disabled=false;x.textContent=x.dataset.t;}
+b.onclick=async function(){if(!ok()){alert("The PDF tool is still loading. Wait a moment and try again.");return;}
+busy(b,"Making PDF…");
+try{var o=await big();var pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:[297,167],compress:true});
+pdf.addImage(o.toDataURL("image/jpeg",0.95),"JPEG",0,0,297,167);pdf.save("Receipt-"+NO+".pdf");}
 catch(e){alert("Could not make the PDF. Please try again.");}
-s.classList.remove("cap");s.style.zoom=z;b.disabled=false;b.textContent=t;};})();</script>
+idle(b);};
+if(pb)pb.onclick=async function(){if(!ok()){alert("Still loading. Wait a moment and try again.");return;}
+busy(pb,"Making photo…");
+try{var o=await big();o.toBlob(function(bl){var a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="Receipt-"+NO+".jpg";document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},4000);},"image/jpeg",0.95);}
+catch(e){alert("Could not make the photo. Please try again.");}
+idle(pb);};
+/* show the photo straight away instead of the flat sheet, as soon as the tools have loaded */
+var tries=0,iv=setInterval(async function(){if(++tries>60){clearInterval(iv);return;}if(!ok())return;clearInterval(iv);
+try{var o=await make(1920);img.src=o.toDataURL("image/jpeg",0.9);img.style.display="block";w.classList.add("off");}catch(e){}},250);})();</script>
 <script>(function(){var s=document.getElementById("sh");function f(){var k=Math.min(1,(window.innerWidth-16)/760);s.style.zoom=k<1?k:"";}f();addEventListener("resize",f);addEventListener("beforeprint",function(){s.style.zoom=""});addEventListener("afterprint",f)})()</script>
 `}${report ? `<script>(function(){var r=document.getElementById("rp");if(!r)return;r.onclick=function(){var a=document.createElement("a");a.href=${JSON.stringify(report.url)};a.download=${JSON.stringify(report.name)};document.body.appendChild(a);a.click();a.remove();setTimeout(function(){var d=document.getElementById("dl");if(d)d.click();},1300);};})();</script>` : ""}</body></html>`;
 }
