@@ -1,13 +1,15 @@
 import { createCanvas, loadImage, type SKRSContext2D } from "@napi-rs/canvas";
 import type { DocInput } from "./hydroDocx";
+import { stampSvg, stampDate } from "./companyStamp";
 
 /**
  * The watermarked preview: every page is drawn as a PICTURE (not text) with the company name tiled across it,
  * then the pictures are put into a PDF. It cannot be converted to an editable Word file, and the watermark is part of the page.
  */
 const PW = 794, PH = 1123, MX = 76, MT = 90, MB = 80; // A4 at 96 dpi
-const SERIF = '"Times New Roman", "Liberation Serif", "DejaVu Serif", serif';
-const NAVY = "#0B2A4A";
+const SERIF = '"Calibri", "Carlito", "Liberation Sans", "DejaVu Sans", Arial, sans-serif';
+const HSERIF = '"Cambria", "Caladea", "Liberation Serif", "DejaVu Serif", serif';
+const NAVY = "#0B3A8C", GREEN = "#2E8B3D", PALE = "#EAF0FA", ZEBRA = "#F5F8FD", LINEC = "#C5D1E3";
 
 /** mark = the watermark text, or null for the clean full PDF (paid). */
 export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise<Buffer> {
@@ -20,8 +22,11 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
     g.save(); g.setTransform(SCALE, 0, 0, SCALE, 0, 0);
     // running header and footer
     if (n > 0) {
-      g.fillStyle = NAVY; font(11); g.textAlign = "right"; g.fillText(d.title, PW - MX, 52); g.strokeStyle = NAVY; g.lineWidth = 0.8; g.beginPath(); g.moveTo(MX, 58); g.lineTo(PW - MX, 58); g.stroke();
-      g.fillStyle = "#222"; font(11); g.textAlign = "center"; g.fillText(`${d.footerText}  |  Page ${n}`, PW / 2, PH - 44);
+      g.textAlign = "left"; g.fillStyle = NAVY; g.font = `bold 10px ${HSERIF}`; g.fillText(d.company.toUpperCase(), MX, 52);
+      g.textAlign = "right"; g.fillStyle = "#5B6573"; font(10); g.fillText(d.title, PW - MX, 52); g.strokeStyle = GREEN; g.lineWidth = 1.2; g.beginPath(); g.moveTo(MX, 58); g.lineTo(PW - MX, 58); g.stroke();
+      g.strokeStyle = LINEC; g.lineWidth = 0.8; g.beginPath(); g.moveTo(MX, PH - 56); g.lineTo(PW - MX, PH - 56); g.stroke();
+      g.textAlign = "left"; g.fillStyle = "#5B6573"; font(10); g.fillText(d.footerText, MX, PH - 40);
+      g.textAlign = "right"; g.fillStyle = NAVY; g.font = `bold 10px ${SERIF}`; g.fillText(`Page ${n}`, PW - MX, PH - 40);
     }
     if (!mark) { g.restore(); return; }
     // the watermark: the name repeated all over the page, slanted, light enough to read through
@@ -46,7 +51,9 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
   };
   const heading = (s: { num?: string; title: string; level: number }) => {
     const size = s.level === 1 ? 20 : s.level === 2 ? 16.5 : 14.5; room(size * 3); y += s.level === 1 ? 14 : 8;
-    text(`${s.num ? s.num + "  " : ""}${s.title}`, { size, bold: true, color: NAVY, after: 4 });
+    const t = `${s.num ? s.num + "  " : ""}${s.title}`; g.font = `bold ${size}px ${HSERIF}`; g.fillStyle = s.level === 1 ? NAVY : s.level === 2 ? "#1F5FBF" : GREEN; g.textAlign = "left";
+    room(size * 1.6); g.fillText(t, MX, y + size); y += size * 1.35;
+    if (s.level === 1) { g.strokeStyle = GREEN; g.lineWidth = 1.6; g.beginPath(); g.moveTo(MX, y); g.lineTo(PW - MX, y); g.stroke(); y += 8; } else y += 3;
   };
   const picture = async (buf: Buffer, w: number, h: number, maxH = 400, maxW = CW) => {
     try {
@@ -55,15 +62,16 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
     } catch { /* a picture that cannot be read is skipped */ }
   };
   let fig = 0, tab = 0;
-  const caption = (label: string, t: string) => { text(`${label} ${label === "Figure" ? ++fig : ++tab}: ${t}`, { size: 12, bold: true, align: "center", after: 10 }); };
+  const caption = (label: string, t: string) => { text(`${label} ${label === "Figure" ? ++fig : ++tab}: ${t}`, { size: 12, bold: true, align: "center", after: 10, color: NAVY }); };
   const table = (head: string[], rows: string[][]) => {
     const cols = Math.max(1, head.length); const wts = head.map((h, i) => Math.max(6, h.length, ...rows.map((r) => (r[i] ?? "").length > 40 ? 40 : (r[i] ?? "").length)));
     const sum = wts.reduce((a, b) => a + b, 0); const ws = wts.map((x) => (x / sum) * CW);
-    const row = (cells: string[], hd: boolean) => {
+    let zi = 0;
+    const row = (cells: string[], hd: boolean) => { zi++;
       font(11.5, hd); const lines = cells.map((c, i) => wrap(c ?? "", ws[i]! - 10)); const h = Math.max(...lines.map((l) => l.length), 1) * 16 + 8;
       room(h); let x = MX;
       for (let i = 0; i < cols; i++) {
-        g.fillStyle = hd ? NAVY : "#fff"; g.fillRect(x, y, ws[i]!, h); g.strokeStyle = "#7a8794"; g.lineWidth = 0.8; g.strokeRect(x, y, ws[i]!, h);
+        g.fillStyle = hd ? NAVY : zi % 2 ? ZEBRA : "#fff"; g.fillRect(x, y, ws[i]!, h); g.strokeStyle = LINEC; g.lineWidth = 0.8; g.strokeRect(x, y, ws[i]!, h);
         g.fillStyle = hd ? "#fff" : "#111"; font(11.5, hd); g.textAlign = "left"; lines[i]!.forEach((l, j) => g.fillText(l, x + 5, y + 16 + j * 16)); x += ws[i]!;
       }
       y += h;
@@ -71,17 +79,23 @@ export async function buildPreviewPdf(d: DocInput, mark: string | null): Promise
     row(head, true); for (const r of rows) row(r, false); y += 12;
   };
 
-  // cover
-  y = 150; text(d.title, { size: 28, bold: true, align: "center", color: NAVY, after: 8, lh: 38 }); text(d.subtitle, { size: 19, bold: true, align: "center", after: 30 });
-  for (const [k, v] of d.cover.filter(([, v]) => v)) { room(30); text(`${k}:  ${v}`, { size: 14, after: 4 }); }
-  y += 20; text(`${d.reference ? `Report Reference: ${d.reference}   |   ` : ""}Report Date: ${d.date}`, { size: 13, bold: true, align: "center" });
+  // cover: logo, coloured band, details, reference, company stamp (same look as the Word file)
+  y = 70;
+  if (d.logo) { try { const im = await loadImage(d.logo); const h = 62, w = (im.width / im.height) * h; g.drawImage(im, (PW - w) / 2, y, w, h); y += h + 10; } catch { /* no logo */ } }
+  g.font = `bold 14px ${HSERIF}`; g.fillStyle = NAVY; g.textAlign = "center"; g.fillText(d.company.toUpperCase().split("").join(" "), PW / 2, y + 14); y += 36;
+  const bandH = 150; g.fillStyle = NAVY; g.fillRect(MX, y, CW, bandH); g.fillStyle = GREEN; g.fillRect(MX, y + bandH, CW, 6);
+  { const yy = y; y = yy + 38; g.fillStyle = "#fff"; g.font = `bold 28px ${HSERIF}`; const tl = wrap(d.title, CW - 40); g.textAlign = "center"; tl.forEach((l, i) => g.fillText(l, PW / 2, yy + 50 + i * 36)); g.fillStyle = "#DCE8FA"; g.font = `18px ${HSERIF}`; g.fillText(d.subtitle, PW / 2, yy + 56 + tl.length * 36 + 10); y = yy + bandH + 30; }
+  for (const [k, v] of d.cover.filter(([, v]) => v)) { room(30); const h = 27; g.fillStyle = PALE; g.fillRect(MX, y, CW * 0.32, h); g.strokeStyle = LINEC; g.lineWidth = 0.8; g.strokeRect(MX, y, CW * 0.32, h); g.strokeRect(MX + CW * 0.32, y, CW * 0.68, h); g.textAlign = "left"; g.fillStyle = NAVY; g.font = `bold 12.5px ${SERIF}`; g.fillText(k, MX + 8, y + 18); g.fillStyle = "#1F2933"; g.font = `12.5px ${SERIF}`; g.fillText(v, MX + CW * 0.32 + 8, y + 18); y += h; }
+  y += 24; g.font = `bold 14px ${HSERIF}`; g.fillStyle = NAVY; g.textAlign = "center"; g.fillText(`${d.reference ? `Report Reference: ${d.reference}   |   ` : ""}Report Date: ${d.date}`, PW / 2, y + 14); y += 28;
+  g.font = `italic 11px ${SERIF}`; g.fillStyle = "#5B6573"; g.fillText("This report is prepared for the exclusive use of the client and project stakeholders named herein.", PW / 2, y + 10); y += 22;
+  try { const dt = new Date(d.date); const im = await loadImage(Buffer.from(stampSvg(stampDate(isNaN(dt.getTime()) ? new Date() : dt)))); g.drawImage(im, (PW - 200) / 2, y, 200, 94); y += 104; } catch { /* no stamp */ }
   if (mark) text("PREVIEW COPY. Pay to receive the full report as an editable Word document.", { size: 12, align: "center", color: "#a11" });
   finish();
   // contents list
-  text("TABLE OF CONTENTS", { size: 20, bold: true, color: NAVY, after: 10 });
+  heading({ title: "TABLE OF CONTENTS", level: 1 });
   for (const s of d.secs) text(`${s.num ? s.num + "  " : ""}${s.title}`, { size: s.level === 1 ? 13 : 12, bold: s.level === 1, indent: (s.level - 1) * 18, after: 1, lh: 18 });
   finish();
-  text("GLOSSARY AND ABBREVIATIONS", { size: 20, bold: true, color: NAVY, after: 10 }); table(["Term", "Meaning"], d.abbreviations.map(([a, b]) => [a, b])); finish();
+  heading({ title: "GLOSSARY AND ABBREVIATIONS", level: 1 }); table(["Term", "Meaning"], d.abbreviations.map(([a, b]) => [a, b])); finish();
   const extras = async (id: string) => {
     for (const t of d.tables.filter((x) => x.after === id)) { caption("Table", t.caption); table(t.head, t.rows); }
     for (const f of d.figures.filter((x) => x.after === id)) { await picture(f.buf, f.w, f.h, /geoelectric section at station/i.test(f.caption) ? 420 : 340); caption("Figure", f.caption); }
