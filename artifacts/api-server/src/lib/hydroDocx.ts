@@ -1,3 +1,4 @@
+import { stampSvg, stampDate } from "./companyStamp";
 import { photoCard, sideCard, type NoteExtra } from "./hydroFigures";
 import {
   AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, ImageRun, LineRuleType, Packer, PageBreak, PageNumber, Paragraph,
@@ -78,6 +79,14 @@ export async function buildDocx(d: DocInput, onPrepared?: (prepared: DocInput) =
   if (d.signature.stamp) kids.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: d.signature.stamp, transformation: { width: 150, height: 150 } })] }));
   kids.push(para(`${d.reference ? `Report Reference: ${d.reference}   |   ` : ""}Report Date: ${d.date}`, { align: AlignmentType.CENTER, bold: true, space: 120 }));
   kids.push(para("This report is prepared for the exclusive use of the client and project stakeholders named herein.", { align: AlignmentType.CENTER, size: 20 }));
+  // the company's own stamp, just below this line on the same page, dated with the report date
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const dt = new Date(d.date); const sd = stampDate(isNaN(dt.getTime()) ? new Date() : dt);
+    const img = await loadImage(Buffer.from(stampSvg(sd)));
+    const cv = createCanvas(1440, 680); cv.getContext("2d").drawImage(img, 0, 0, 1440, 680);
+    kids.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 240 }, children: [new ImageRun({ type: "png", data: cv.toBuffer("image/png"), transformation: { width: 190, height: 90 } })] }));
+  } catch { /* the report is still written without the stamp */ }
   kids.push(new Paragraph({ children: [new PageBreak()] }));
   const label = (t: string) => new Paragraph({ alignment: AlignmentType.LEFT, spacing: { after: 200 }, children: [run(t, { bold: true, size: 30, color: "0B2A4A" })] });
   kids.push(label("TABLE OF CONTENTS"));
