@@ -232,7 +232,7 @@ function SendLink({ id, h }: { id: number; h: Record<string, string> }) {
   return (
     <div className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3">
       <h4 className="text-sm font-bold text-foreground">Send to a client who paid you</h4>
-      <p className="mb-2 text-xs text-muted-foreground">Making the link means the client has paid. They open it, tap one button, and the report PDF and a receipt PDF download. The link never expires.</p>
+      <p className="mb-2 text-xs text-muted-foreground">Making the link means the client has paid. They open it, tap one button, and the report PDF and a receipt PDF download. The link never expires. “Copy PDF link” gives a direct link that downloads only the report PDF.</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <input inputMode="numeric" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="Amount paid (KSh), e.g. 1000" className={inp} />
         <select value={f.method} onChange={(e) => setF({ ...f, method: e.target.value })} className={inp}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option><option value="bank">Bank / PayPal / other</option><option value="cheque">Cheque</option></select>
@@ -254,6 +254,8 @@ function SendLink({ id, h }: { id: number; h: Record<string, string> }) {
           <div className="mt-1 break-all text-muted-foreground">{l.url}</div>
           <div className="mt-1.5 flex flex-wrap gap-2">
             <button type="button" onClick={() => void navigator.clipboard.writeText(l.url).then(() => setMsg("Link copied."))} className="rounded-md border border-border px-2 py-1 font-bold">Copy link</button>
+            <button type="button" onClick={() => void navigator.clipboard.writeText(`${l.url}/report`).then(() => setMsg("PDF link copied. It opens the report PDF straight away."))} className="rounded-md border border-border px-2 py-1 font-bold">Copy PDF link</button>
+            <a href={`https://wa.me/?text=${encodeURIComponent(`Your survey report (PDF) is ready. Download it here: ${l.url}/report`)}`} target="_blank" rel="noreferrer" className="rounded-md border border-border px-2 py-1 font-bold">WhatsApp PDF link</a>
             <a href={`https://wa.me/?text=${encodeURIComponent(`Your survey report is ready. Download it here: ${l.url}`)}`} target="_blank" rel="noreferrer" className="rounded-md border border-border px-2 py-1 font-bold">Send on WhatsApp</a>
             <button type="button" onClick={() => void flip(l.token, !l.active)} className="rounded-md border border-border px-2 py-1 font-bold">{l.active ? "Switch off" : "Switch on"}</button>
           </div>
