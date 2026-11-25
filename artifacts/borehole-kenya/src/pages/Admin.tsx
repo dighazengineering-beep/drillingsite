@@ -56,6 +56,9 @@ const GROUPS: { title: string; items: { k: Tab; name: string; Icon: LucideIcon; 
 export default function Admin() {
   const [key, setKey] = useState(() => store.get("kws_admin"));
   const [pw, setPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [install, setInstall] = useState<{ prompt: () => Promise<void> } | null>(null);
+  useEffect(() => { const f = (e: Event) => { e.preventDefault(); setInstall(e as unknown as { prompt: () => Promise<void> }); }; window.addEventListener("beforeinstallprompt", f); return () => window.removeEventListener("beforeinstallprompt", f); }, []);
   const [err, setErr] = useState("");
   const [checking, setChecking] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -154,24 +157,28 @@ export default function Admin() {
               <p className="text-xs text-muted-foreground">Dighaz Engineering Limited control panel</p>
             </div>
           </div>
-          {gid ? (
+          {gid && (
             <>
               <p className="text-center text-xs text-muted-foreground">Sign in with the company Google account. Other accounts are not let in.</p>
               {err && <p className="text-center text-xs text-red-600" role="alert">{err}</p>}
               <div ref={gbtn} className="flex min-h-[44px] justify-center" data-testid="admin-google" />
               {checking && <p className="text-center text-xs text-muted-foreground">Checking…</p>}
+              {!showPw && <button type="button" onClick={() => setShowPw(true)} className="block w-full text-center text-xs font-semibold text-primary underline">Use the admin password instead</button>}
             </>
-          ) : (
+          )}
+          {(!gid || showPw) && (
             <>
-              <input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Admin password"
+              <input type="password" autoFocus={!gid} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Admin password"
                 className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
-              {err && <p className="text-xs text-red-600">{err}</p>}
+              {!gid && err && <p className="text-xs text-red-600">{err}</p>}
               <button disabled={!pw || checking} className="w-full rounded-xl bg-gradient-to-r from-[hsl(215_70%_16%)] to-primary py-3 text-sm font-bold text-white shadow-lg disabled:opacity-50">
                 {checking ? "Checking…" : "Sign in"}
               </button>
-              <p className="text-center text-[11px] text-muted-foreground">Google sign-in is not switched on yet, so the admin password is used.</p>
+              {!gid && <p className="text-center text-[11px] text-muted-foreground">Google sign-in is not switched on yet, so the admin password is used.</p>}
             </>
           )}
+          {install ? <button type="button" onClick={() => { void install.prompt(); setInstall(null); }} className="w-full rounded-xl border border-primary py-2.5 text-sm font-bold text-primary">Install the Admin app</button>
+            : <p className="text-center text-[11px] text-muted-foreground">To install this as an app: on Android open the Chrome menu (⋮) and tap “Install app”; on iPhone tap Share, then “Add to Home Screen”.</p>}
         </form>
       </div>
     );

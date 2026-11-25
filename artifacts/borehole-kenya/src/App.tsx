@@ -47,6 +47,8 @@ const queryClient = new QueryClient({
 
 function Router() {
   const [loc] = useLocation();
+  // the admin panel is its own app: no client menu, footer, ticker, popups or payment box around it
+  if (loc.replace(/\/+$/, "") === ADMIN_PATH) return <main className="min-h-screen"><Admin /></main>;
     return (
     <div className={`isolate flex flex-col min-h-screen ${tickerHidden(loc) ? "" : "pb-8"}`}>
       {/* One live video behind every page (not the full-screen feed or admin) */}
